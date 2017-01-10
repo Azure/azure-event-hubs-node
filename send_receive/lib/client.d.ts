@@ -8,10 +8,32 @@ import Receiver = require('./receiver');
 import Sender = require('./sender');
 
 declare namespace EventHubClient {
+    enum receiverSettleMode {
+        autoSettle,
+        settleOnDisposition
+    }
+
+    interface ReceiverFlowControlPolicy {
+        /**
+         * Auto or On disposition
+         * One of EventHubClient.receiverSettleMode.autoSettle or EventHubClient.receiverSettleMode.settleOnDisposition
+         */
+        receiverSettleMethod: receiverSettleMode;
+        /**
+         * Re-crediting policy if not auto-settling
+         */
+        creditPolicy?: () => void;
+        /**
+         * Initial number of credits for the receiver if not auto-settling
+         */
+        creditQuantum?: number;
+    }
+
     interface ReceiverOptions {
         startAfterTime?: Date | number;
         startAfterOffset?: string;
         customFilter?: string;
+        flowControlPolicy?: ReceiverFlowControlPolicy;
     }
     type PartitionId = string | number;
 }

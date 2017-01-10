@@ -15,6 +15,8 @@ declare class EventHubReceiver extends EventEmitter {
     on(type: 'errorReceived', func: (err: Error) => void): this;
     // Required last overload, though which shouldn't be called during normal operation
     on(type: string, func: Function): this;
+
+    addCredits(creditsQuantum: number): void;
 }
 
 export = EventHubReceiver;

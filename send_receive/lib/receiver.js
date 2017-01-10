@@ -73,4 +73,8 @@ EventHubReceiver.prototype.close = function() {
   });
 };
 
+EventHubReceiver.prototype.addCredits = function(creditsQuantum) {
+  this._receiverLink.addCredits(creditsQuantum);
+};
+
 module.exports = EventHubReceiver;
