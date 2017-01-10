@@ -61,16 +61,6 @@ function EventHubClient(config) {
 }
 
 /**
- * recevierSettleMode enum proxy from amqp10.Constants.receiverSettleMode
- */
-var receiverSettleMode;
-(function (receiverSettleMode) {
-  receiverSettleMode[receiverSettleMode.autoSettle = amqp10.Constants.receiverSettleMode.autoSettle] = 'autoSettle';
-  receiverSettleMode[receiverSettleMode.settleOnDisposition = amqp10.Constants.receiverSettleMode.settleOnDisposition] = 'settleOnDisposition';
-})(receiverSettleMode || (receiverSettleMode = {}));
-EventHubClient.receiverSettleMode = receiverSettleMode;
-
-/**
  * Static factory method for convenience.
  *
  * @method fromConnectionString
