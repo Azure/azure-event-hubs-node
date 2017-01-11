@@ -38,7 +38,7 @@ function EventHubClient(config) {
       attach: {
         maxMessageSize: 0 // means infinity
       },
-      decoder: function(body) {
+      decoder: function (body) {
         var bodyStr = null;
 
         if (body instanceof Buffer) {
@@ -202,12 +202,13 @@ EventHubClient.prototype.getPartitionIds = function () {
  * Receivers are event emitters, watch for 'message' and 'errorReceived' events.
  *
  * @method createReceiver
- * @param {string} consumerGroup                      Consumer group from which to receive.
- * @param {(string|Number)} partitionId               Partition ID from which to receive.
- * @param {*} [options]                               Options for how you'd like to connect. Only one can be specified.
- * @param {(Date|Number)} options.startAfterTime      Only receive messages enqueued after the given time.
- * @param {string} options.startAfterOffset           Only receive messages after the given offset.
- * @param {string} options.customFilter               If you want more fine-grained control of the filtering.
+ * @param {string} consumerGroup                                Consumer group from which to receive.
+ * @param {(string|Number)} partitionId                         Partition ID from which to receive.
+ * @param {*} [options]                                         Options for how you'd like to connect. Only one can be specified.
+ * @param {(Date|Number)} options.startAfterTime                Only receive messages enqueued after the given time.
+ * @param {string} options.startAfterOffset                     Only receive messages after the given offset.
+ * @param {string} options.customFilter                         If you want more fine-grained control of the filtering.
+ * @param {ReceiverFlowControlPolicy} options.flowControlPolicy Receiver flow control policy
  *      See https://github.com/Azure/amqpnetlite/wiki/Azure%20Service%20Bus%20Event%20Hubs for details.
  *
  * @return {Promise}
@@ -238,6 +239,22 @@ EventHubClient.prototype.createReceiver = function createReceiver(consumerGroup,
                 ['described', ['symbol', 'apache.org:selector-filter:string'], ['string', filterClause]])
             } } }
           };
+        }
+
+        if (options.flowControlPolicy) {
+            var flowPolicy = {
+              attach: {receiverSettleMode: options.flowControlPolicy.receiverSettleMethod}
+            };
+
+            if (options.flowControlPolicy.creditPolicy) {
+                flowPolicy.credit = options.flowControlPolicy.creditPolicy;
+            }
+
+            if (options.flowControlPolicy.creditQuantum !== null) {
+                flowPolicy.creditQuantum = options.flowControlPolicy.creditQuantum;
+            }
+
+            filter = amqp10.Policy.merge(flowPolicy, filter || {});
         }
       }
 

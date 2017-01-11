@@ -12,6 +12,7 @@ declare namespace EventHubClient {
         startAfterTime?: Date | number;
         startAfterOffset?: string;
         customFilter?: string;
+        flowControlPolicy?: Receiver.ReceiverFlowControlPolicy;
     }
     type PartitionId = string | number;
 }

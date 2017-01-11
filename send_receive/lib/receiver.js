@@ -5,6 +5,7 @@
 
 var EventEmitter = require('events').EventEmitter;
 var util = require('util');
+var amqp10 = require('amqp10');
 
 var EventData = require('./eventdata.js');
 var errors = require('./errors.js');
@@ -59,6 +60,19 @@ function EventHubReceiver(amqpReceiverLink) {
 util.inherits(EventHubReceiver, EventEmitter);
 
 /**
+ * recevierSettleMode enum proxy from amqp10.Constants.receiverSettleMode
+ */
+var receiverSettleMode;
+(function (receiverSettleMode) {
+  receiverSettleMode[receiverSettleMode.autoSettle = amqp10.Constants.receiverSettleMode.autoSettle] = 'autoSettle';
+  receiverSettleMode[receiverSettleMode.settleOnDisposition = amqp10.Constants.receiverSettleMode.settleOnDisposition] = 'settleOnDisposition';
+})(receiverSettleMode || (receiverSettleMode = {}));
+EventHubReceiver.receiverSettleMode = receiverSettleMode;
+
+EventHubReceiver.creditPolicies = amqp10.Policy.Utils.CreditPolicies;
+
+
+/**
  * "Unlink" this receiver, closing the link and resolving when that operation is complete. Leaves the underlying connection/session open.
  *
  * @method close
@@ -71,6 +85,10 @@ EventHubReceiver.prototype.close = function() {
     self.removeAllListeners();
     self._receiverLink = null;
   });
+};
+
+EventHubReceiver.prototype.addCredits = function(creditsQuantum) {
+  this._receiverLink.addCredits(creditsQuantum);
 };
 
 module.exports = EventHubReceiver;
