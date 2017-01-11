@@ -254,7 +254,7 @@ EventHubClient.prototype.createReceiver = function createReceiver(consumerGroup,
                 flowPolicy.creditQuantum = options.flowControlPolicy.creditQuantum;
             }
 
-            filter = amqp10.Policy.merge(flowPolicy, filter);
+            filter = amqp10.Policy.merge(flowPolicy, filter || {});
         }
       }
 
