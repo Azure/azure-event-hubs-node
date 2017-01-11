@@ -243,9 +243,7 @@ EventHubClient.prototype.createReceiver = function createReceiver(consumerGroup,
 
         if (options.flowControlPolicy) {
             var flowPolicy = {
-              attach: {receiverSettleMode: options.flowControlPolicy.receiverSettleMethod},
-              credit: null,
-              creditQuantum: null
+              attach: {receiverSettleMode: options.flowControlPolicy.receiverSettleMethod}
             };
 
             if (options.flowControlPolicy.creditPolicy) {
