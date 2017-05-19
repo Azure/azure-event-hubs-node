@@ -61,7 +61,7 @@ var EventHubClient = require('azure-event-hubs').Client;
 var client = EventHubClient.fromConnectionString('Endpoint=sb://my-servicebus-namespace.servicebus.windows.net/;SharedAccessKeyName=my-SA-name;SharedAccessKey=my-SA-key', 'myeventhub')
 client.open()
       .then(function() {
-        client.createSender();
+        return client.createSender();
       })
       .then(function (tx) {
         tx.on('errorReceived', function (err) { console.log(err); });
