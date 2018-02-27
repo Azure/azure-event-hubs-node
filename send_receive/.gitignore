@@ -32,3 +32,17 @@ node_modules
 
 # WebStorm
 .idea
+
+# Mac OS #
+.DS_Store
+.DS_Store?
+
+# Nuget packages and corresponding codegen sources
+.nuget
+packages
+
+# Visual Studio #
+*.suo
+*.user
+.ntvs_analysis.dat
+obj/*
