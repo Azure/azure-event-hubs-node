@@ -1,19 +1,18 @@
 
 import * as rhea from "rhea";
-import * as url from "url";
 
-async function connect(options: ConnectionOptions): Promise<any> {
+export async function connect(options: ConnectionOptions): Promise<any> {
   return new Promise((resolve, reject) => {
     const connection = rhea.connect(options);
 
-    function onOpen(context: any) {
+    function onOpen(context: any): void {
       connection.removeListener('connection_open', onOpen);
       connection.removeListener('connection_close', onClose);
       connection.removeListener('disconnected', onClose);
       resolve(connection);
     }
 
-    function onClose(err: any) {
+    function onClose(err: any): void  {
       connection.removeListener('connection_open', onOpen);
       connection.removeListener('connection_close', onClose);
       connection.removeListener('disconnected', onClose);
@@ -26,17 +25,17 @@ async function connect(options: ConnectionOptions): Promise<any> {
   });
 }
 
-async function createSession(connection: any): Promise<any> {
+export async function createSession(connection: any): Promise<any> {
   return new Promise((resolve, reject) => {
     const session = connection.create_session();
 
-    function onOpen(context: any) {
+    function onOpen(context: any): void  {
       session.removeListener('session_open', onOpen);
       session.removeListener('session_close', onClose);
       resolve(session);
     }
 
-    function onClose(err: any) {
+    function onClose(err: any): void  {
       session.removeListener('session_open', onOpen);
       session.removeListener('session_close', onClose);
       reject(err);
@@ -49,7 +48,7 @@ async function createSession(connection: any): Promise<any> {
   });
 }
 
-async function createSender(session: any, path: string, options?: any): Promise<any> {
+export async function createSender(session: any, path: string, options?: any): Promise<any> {
   if (!options) options = {};
   if (!options.target) options.target = {};
   options.target.address = path;
@@ -57,13 +56,13 @@ async function createSender(session: any, path: string, options?: any): Promise<
   return new Promise((resolve, reject) => {
     const sender = session.attach_sender(path, options);
 
-    function onOpen(context: any) {
+    function onOpen(context: any): void  {
       sender.removeListener('sendable', onOpen);
       sender.removeListener('sender_close', onClose);
       resolve(sender);
     }
 
-    function onClose(err: any) {
+    function onClose(err: any): void  {
       sender.removeListener('sendable', onOpen);
       sender.removeListener('sender_close', onClose);
       reject(err);
@@ -74,7 +73,7 @@ async function createSender(session: any, path: string, options?: any): Promise<
   });
 }
 
-async function createReceiver(session: any, path: string, options?: any): Promise<any> {
+export async function createReceiver(session: any, path: string, options?: any): Promise<any> {
   if (!options) options = {};
   if (!options.source) options.source = {};
   options.source.address = path;
@@ -82,13 +81,13 @@ async function createReceiver(session: any, path: string, options?: any): Promis
   return new Promise((resolve, reject) => {
     const receiver = session.attach_receiver(options);
 
-    function onOpen(context: any) {
+    function onOpen(context: any): void  {
       receiver.removeListener('receiver_open', onOpen);
       receiver.removeListener('receiver_close', onClose);
       resolve(receiver);
     }
 
-    function onClose(err: any) {
+    function onClose(err: any): void  {
       receiver.removeListener('receiver_open', onOpen);
       receiver.removeListener('receiver_close', onClose);
       reject(err);
@@ -117,7 +116,7 @@ export interface ConnectionOptions {
   password?: string;
 }
 
-function parseConnectionString(connectionString: string): ParsedConnectionString {
+export function parseConnectionString(connectionString: string): ParsedConnectionString {
   return connectionString.split(';').reduce((acc, part) => {
     const splitIndex = part.indexOf('=');
     return {
@@ -127,24 +126,3 @@ function parseConnectionString(connectionString: string): ParsedConnectionString
   }, {} as any);
 }
 
-async function fromConnectionString(connectionString: string, options?: { useSaslAnonymous?: false }): Promise<any> {
-  if (!options) options = {};
-
-  const parsed = parseConnectionString(connectionString);
-  const connectOptions: ConnectionOptions = {
-    transport: 'tls',
-    host: url.parse(parsed.Endpoint as string).hostname as string,
-    hostname: url.parse(parsed.Endpoint as string).hostname as string,
-    username: parsed.SharedAccessKeyName as string,
-    port: 5671,
-    reconnect_limit: 100
-  };
-
-  if (!options.useSaslAnonymous) {
-    connectOptions.password = parsed.SharedAccessKey;
-  }
-
-  return await connect(connectOptions);
-}
-
-export { connect, createSession, createSender, createReceiver, fromConnectionString, parseConnectionString };

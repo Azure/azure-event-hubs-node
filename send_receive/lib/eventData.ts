@@ -1,12 +1,6 @@
-import * as rhea from "rhea"
+import * as Constants from "./util/constants";
 
-export namespace EventData {
-  export interface Dictionary<T> {
-    [key: string]: T;
-  }
-}
-
-export class EventData {
+export interface EventData {
   // string or decoded json of that string
   readonly body: any;
   readonly enqueuedTimeUtc?: Date | string | number;
@@ -17,22 +11,31 @@ export class EventData {
   readonly systemProperties?: EventData.Dictionary<any>;
   properties?: EventData.Dictionary<any>;
   applicationProperties?: EventData.Dictionary<any>;
+}
 
-  constructor(body: any, annotations: EventData.Dictionary<any>, properties: EventData.Dictionary<any>, applicationProperties: EventData.Dictionary<any>) {
-    this.body = body;
-    this.annotations = annotations;
-    this.properties = properties;
-    this.systemProperties = properties;
-    this.applicationProperties = applicationProperties;
-    if (this.annotations) {
-      this.partitionKey = this.annotations["x-opt-partition-key"];
-      this.sequenceNumber = this.annotations["x-opt-sequence-number"];
-      this.enqueuedTimeUtc = this.annotations["x-opt-enqueued-time"];
-      this.offset = this.annotations["x-opt-offset"];
-    }
+export namespace EventData {
+  export interface Dictionary<T> {
+    [key: string]: T;
   }
-
-  static fromAmqpMessage(msg: any): EventData {
-    return new EventData(msg.body, msg.message_annotations, msg.properties, msg.application_properties);
+  export function fromAmqpMessage(msg: any): EventData {
+    // TODO: Look at how other sdks are encoding their payloads and copy them. This will ensure consistency across all the sdks.
+    let data: any = {
+      body: msg.body,
+    };
+    if (msg.message_annotations) {
+      data.annotations = msg.message_annotations;
+      data.partitionKey = msg.message_annotations[Constants.partitionKey];
+      data.sequenceNumber = msg.message_annotations[Constants.sequenceNumber];
+      data.enqueuedTimeUtc = msg.message_annotations[Constants.enqueuedTime];
+      data.offset = msg.message_annotations[Constants.offset];
+    }
+    if (msg.properties) {
+      data.properties = msg.properties;
+      data.systemProperties = msg.properties;
+    }
+    if (msg.application_properties) {
+      data.applicationProperties = msg.application_properties;
+    }
+    return data;
   }
 }

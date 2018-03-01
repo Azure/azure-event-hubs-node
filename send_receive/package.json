@@ -7,14 +7,18 @@
   "main": "./lib",
   "dependencies": {
     "rhea": "^0.2.10",
+    "buffer": "^5.1.0",
     "azure-arm-eventhub": "^1.2.0-preview",
-    "@types/node": "^9.4.6"
+    "@types/node": "^8.0.0"
   },
   "devDependencies": {
-    "typescript": "^2.7.2"
+    "typescript": "^2.7.2",
+    "tslint": "^5.9.1"
   },
   "scripts": {
-    "tsc": "tsc -p tsconfig.json"
+    "tslint": "tslint -p . -c tslint.json --exclude examples/**/*.ts",
+    "tsc": "tsc",
+    "build": " npm run tslint && npm run tsc"
   },
   "homepage": "http://github.com/azure/azure-event-hubs-node",
   "repository": {

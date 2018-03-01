@@ -1,0 +1,16 @@
+export const partitionKey = "x-opt-partition-key";
+export const sequenceNumber = "x-opt-sequence-number";
+export const enqueuedTime = "x-opt-enqueued-time";
+export const offset = "x-opt-offset";
+export const enqueuedTimeAnnotation = "amqp.annotation.x-opt-enqueued-time";
+export const offsetAnnotation = "amqp.annotation.x-opt-offset";
+export const message = "message";
+export const statusCode = "status-code";
+export const statusDescription = "status-description";
+export const management = "$management";
+export const partition = "partition";
+export const partitionId = "partitionId";
+export const readOperation = "READ";
+export const TLS = "tls";
+export const defaultConsumerGroup = "$default";
+export const eventHub = "eventhub";

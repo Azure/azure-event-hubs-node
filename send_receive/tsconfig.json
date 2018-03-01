@@ -11,8 +11,9 @@
     "noImplicitThis": true,
     "outDir": "dist",
     "allowJs": false,
-    "strict": true,
+    "noUnusedLocals":true,
     "strictNullChecks": true,
+    "strictPropertyInitialization": true,
     "declaration": true,
     "declarationDir": "./typings",
     "lib": [

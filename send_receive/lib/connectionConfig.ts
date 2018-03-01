@@ -1,24 +1,29 @@
 
-import { parseConnectionString, ParsedConnectionString } from "./rhea-promise";
+import { parseConnectionString } from "./rhea-promise";
 
-export class ConnectionConfig {
+export interface ConnectionConfig {
   endpoint: string;
   host: string;
   connectionString: string;
   entityPath?: string;
   sharedAccessKeyName: string;
   sharedAccessKey: string;
+}
 
-  constructor(connectionString: string, path?: string) {
-    this.connectionString = connectionString;
+export namespace ConnectionConfig {
+  export function create(connectionString: string, path?: string): ConnectionConfig {
     const parsedCS = parseConnectionString(connectionString);
-    this.endpoint = parsedCS.Endpoint;
-    this.host = (this.endpoint.match('sb://([^/]*)') || [])[1];
     if (!path && !parsedCS.EntityPath) {
       throw new Error(`Either provide "path" or the "connectionString": "${connectionString}", must contain EntityPath="<path-to-the-entity>".`);
     }
-    this.entityPath = path || parsedCS.EntityPath;
-    this.sharedAccessKeyName = parsedCS.SharedAccessKeyName;
-    this.sharedAccessKey = parsedCS.SharedAccessKey;
+    const result: ConnectionConfig = {
+      connectionString: connectionString,
+      endpoint: parsedCS.Endpoint,
+      host: (parsedCS.Endpoint.match('sb://([^/]*)') || [])[1],
+      entityPath: path || parsedCS.EntityPath,
+      sharedAccessKeyName: parsedCS.SharedAccessKeyName,
+      sharedAccessKey: parsedCS.SharedAccessKey
+    };
+    return result;
   }
 }

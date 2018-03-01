@@ -1,42 +1,49 @@
 import { EventEmitter } from "events";
-import { EventData } from "./eventData"
+import { EventData } from "./eventData";
+import * as Constants from "./util/constants";
+
 /**
  * Instantiate a new receiver from the AMQP `Receiver`. Used by `EventHubClient`.
- * 
+ *
+ * @param {any} session - The amqp session on which the amqp receiver link was created.
  * @param {any} receiver - The amqp receiver link.
  * @constructor
  */
 export class EventHubReceiver extends EventEmitter {
   private _receiver: any;
+  private _session: any;
 
-  constructor(receiver: any) {
+  constructor(session: any, receiver: any) {
     super();
-    const self = this;
-    self._receiver = receiver;
+    this._session = session;
+    this._receiver = receiver;
 
-    function onMessage(context: any) {
-      var evData = EventData.fromAmqpMessage(context.message);
-      self.emit('message', evData);
-    }
+    const onMessage = (context: any) => {
+      const evData = EventData.fromAmqpMessage(context.message);
+      this.emit(Constants.message, evData);
+    };
 
-    self.on('newListener', function (event) {
-      if (event === 'message') {
-        self._receiver.on('message', onMessage);
+    this.on("newListener", (event) => {
+      if (event === Constants.message) {
+        if (this._session && this._receiver) {
+          this._receiver.on(Constants.message, onMessage);
+        }
       }
     });
 
-    self.on('removeListener', function (event) {
-      if (event === 'message') {
-        self._receiver.on('message', onMessage);
+    this.on("removeListener", (event) => {
+      if (event === Constants.message) {
+        if (!this._session && this._receiver) {
+          this._receiver.on(Constants.message, onMessage);
+        }
       }
     });
   }
 
-  async close() {
-    var self = this;
-    return self._receiver.detach().then(function () {
-      self.removeAllListeners();
-      self._receiver = null;
-    });
+  async close(): Promise<void> {
+    await this._receiver.detach();
+    this.removeAllListeners();
+    this._receiver = undefined;
+    this._session = undefined;
   }
 }

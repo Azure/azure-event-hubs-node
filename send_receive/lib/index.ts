@@ -1,14 +1,8 @@
-import { EventData } from "./eventData";
-import { ConnectionConfig } from "./connectionConfig";
-import { EventHubReceiver } from "./eventHubReceiver";
-import { EventHubSender } from "./eventHubSender";
-import {
+export { EventData } from "./eventData";
+export { ConnectionConfig } from "./connectionConfig";
+export { EventHubReceiver } from "./eventHubReceiver";
+export { EventHubSender } from "./eventHubSender";
+export {
   EventHubClient, EventHubPartitionRuntimeInformation,
   EventHubRuntimeInformation, ReceiveOptions
 } from "./eventHubClient";
-
-export {
-  EventData, ConnectionConfig, EventHubReceiver, EventHubSender,
-  EventHubClient, EventHubPartitionRuntimeInformation,
-  EventHubRuntimeInformation, ReceiveOptions
-};

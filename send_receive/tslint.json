@@ -4,7 +4,6 @@
             true,
             { "order": "instance-sandwich" }
         ],
-        "no-var-requires": true,
         "typedef": [
             true,
             "call-signature",
@@ -54,7 +53,6 @@
         "new-parens": true,
         "one-line": [true, "check-catch", "check-finally", "check-else", "check-open-brace"],
         "one-variable-per-declaration": [true, "ignore-for-loop"],
-        "quotemark": [true, "single"],
         "semicolon": [true, "always"],
         "variable-name": [true, "check-format", "allow-leading-underscore", "ban-keywords"],
         "whitespace": [true, "check-branch", "check-decl", "check-operator", "check-module", "check-seperator", "check-type"]
