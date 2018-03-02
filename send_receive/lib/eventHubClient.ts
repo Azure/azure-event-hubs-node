@@ -2,9 +2,12 @@ import * as rheaPromise from "./rhea-promise";
 import * as rhea from "rhea";
 import * as uuid from "uuid/v4";
 import * as Constants from "./util/constants";
+import * as cbs from "./cbs";
 import { EventHubReceiver, EventHubSender, ConnectionConfig } from ".";
-
+import { TokenProvider } from "./auth/token";
+import { SasTokenProvider } from "./auth/sas";
 const Buffer = require("buffer/").Buffer;
+
 
 interface ReceiveOptions {
   startAfterTime?: Date | number;
@@ -76,22 +79,28 @@ interface EventHubPartitionRuntimeInformation {
 class EventHubClient {
   private _config: ConnectionConfig;
   private _connection: any;
+  private _tokenProvider: TokenProvider;
 
   /**
    * @constructor
    * @param {ConnectionConfig} config - The connection configuration to create the EventHub Client.
    */
-  constructor(config: ConnectionConfig) {
+  constructor(config: ConnectionConfig, tokenProvider?: TokenProvider) {
     this._config = config;
+    if (!tokenProvider) {
+      tokenProvider = new SasTokenProvider(config.endpoint, config.sharedAccessKeyName, config.sharedAccessKey);
+    }
+    this._tokenProvider = tokenProvider;
   }
 
   /**
    * Opens the AMQP connection to the Event Hub for this client, returning a promise that will be resolved when the connection is completed.
    * @method open
-   * @returns {Promise}
+   *
+   * @param {boolean} [useSaslPlain] - True for using sasl plain mode for authentication, false otherwise.
+   * @returns {Promise<void>}
    */
-  // TODO: Add AuthenticationProviders.
-  async open(useSaslAnonymous: boolean = false): Promise<any> {
+  async open(useSaslPlain?: boolean): Promise<void> {
     if (!this._connection) {
       const connectOptions: rheaPromise.ConnectionOptions = {
         transport: Constants.TLS,
@@ -101,7 +110,7 @@ class EventHubClient {
         port: 5671,
         reconnect_limit: 100
       };
-      if (!useSaslAnonymous) {
+      if (useSaslPlain) {
         connectOptions.password = this._config.sharedAccessKey;
       }
       this._connection = await rheaPromise.connect(connectOptions);
@@ -170,6 +179,8 @@ class EventHubClient {
    */
   async createSender(partitionId?: string): Promise<EventHubSender> {
     await this.open();
+    const audience = `${this._config.endpoint}${this._config.entityPath}`;
+    await cbs.negotiateClaim(audience, this._connection, this._tokenProvider);
     let senderSession = await rheaPromise.createSession(this._connection);
     let sender = await rheaPromise.createSender(senderSession, this._config.entityPath as string);
     return new EventHubSender(senderSession, sender);
@@ -214,6 +225,8 @@ class EventHubClient {
       }
     }
     await this.open();
+    const audience = `${this._config.endpoint}${receiverAddress}`;
+    await cbs.negotiateClaim(audience, this._connection, this._tokenProvider);
     let receiverSession = await rheaPromise.createSession(this._connection);
     let receiver = await rheaPromise.createReceiver(receiverSession, receiverAddress, rcvrOptions);
     return new EventHubReceiver(receiverSession, receiver);
@@ -256,8 +269,8 @@ class EventHubClient {
 
         // TODO: Handle timeout incase SB/EH does not send a response.
         receiver.on(Constants.message, ({ message, delivery }: any) => {
-          const code: any = message.application_properties[Constants.statusCode];
-          const desc: any = message.application_properties[Constants.statusDescription];
+          const code: number = message.application_properties[Constants.statusCode];
+          const desc: string = message.application_properties[Constants.statusDescription];
           if (code === 200) {
             return resolve(message.body);
           } else if (code === 404) {
@@ -279,13 +292,13 @@ class EventHubClient {
    * @param {string} [path] - Event Hub path of the form 'my-event-hub-name'
    * @returns {EventHubClient} - An instance of the eventhub client.
    */
-  static fromConnectionString(connectionString: string, path?: string): EventHubClient {
+  static fromConnectionString(connectionString: string, path?: string, tokenProvider?: TokenProvider): EventHubClient {
     const config = ConnectionConfig.create(connectionString, path);
 
     if (!config.entityPath) {
       throw new Error(`Either the connectionString must have "EntityPath=<path-to-entity>" or you must provide "path", while creating the client`);
     }
-    return new EventHubClient(config);
+    return new EventHubClient(config, tokenProvider);
   }
 }
 

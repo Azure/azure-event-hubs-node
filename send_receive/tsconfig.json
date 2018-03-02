@@ -33,7 +33,7 @@
     "node_modules"
   ],
   "include": [
-    "./lib/**/*.ts",
+    "./lib",
     "./examples"
   ]
 }

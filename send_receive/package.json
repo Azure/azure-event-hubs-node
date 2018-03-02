@@ -9,7 +9,7 @@
     "rhea": "^0.2.10",
     "buffer": "^5.1.0",
     "azure-arm-eventhub": "^1.2.0-preview",
-    "@types/node": "^8.0.0"
+    "@types/node": "^8.0.37"
   },
   "devDependencies": {
     "typescript": "^2.7.2",
