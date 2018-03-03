@@ -9,6 +9,7 @@ async function main(): Promise<void> {
   const sender = await client.createSender();
   const receiver = await client.createReceiver("0");
   sender.send("Hey Amar!!");
+  console.log("Sent Message");
   receiver.on("message", (eventData) => {
     console.log(eventData);
   });

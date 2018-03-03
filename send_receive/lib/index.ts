@@ -6,3 +6,5 @@ export {
   EventHubClient, EventHubPartitionRuntimeInformation,
   EventHubRuntimeInformation, ReceiveOptions
 } from "./eventHubClient";
+
+export { TokenType, TokenProvider, TokenInfo } from "./auth/token";

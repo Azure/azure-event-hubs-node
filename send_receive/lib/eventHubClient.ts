@@ -1,22 +1,20 @@
 import * as rheaPromise from "./rhea-promise";
-import * as rhea from "rhea";
 import * as uuid from "uuid/v4";
 import * as Constants from "./util/constants";
-import * as cbs from "./cbs";
 import { EventHubReceiver, EventHubSender, ConnectionConfig } from ".";
 import { TokenProvider } from "./auth/token";
 import { SasTokenProvider } from "./auth/sas";
 const Buffer = require("buffer/").Buffer;
 
 
-interface ReceiveOptions {
+export interface ReceiveOptions {
   startAfterTime?: Date | number;
   startAfterOffset?: string;
   customFilter?: string;
   consumerGroup?: string;
 }
 
-interface EventHubRuntimeInformation {
+export interface EventHubRuntimeInformation {
   /**
    * @property {string} path - The name of the event hub.
    */
@@ -39,7 +37,7 @@ interface EventHubRuntimeInformation {
   type: "com.microsoft:eventhub";
 }
 
-interface EventHubPartitionRuntimeInformation {
+export interface EventHubPartitionRuntimeInformation {
   /**
    * @property {string} hubPath - The name of the eventhub.
    */
@@ -70,27 +68,25 @@ interface EventHubPartitionRuntimeInformation {
   type: "com.microsoft:partition";
 }
 
-/**
- * Instantiate a client pointing to the Event Hub given by this configuration.
- *
- * @param {ConnectionConfig} config
- * @constructor
- */
-class EventHubClient {
-  private _config: ConnectionConfig;
-  private _connection: any;
-  private _tokenProvider: TokenProvider;
+export class EventHubClient {
+
+  config: ConnectionConfig;
+  tokenProvider: TokenProvider;
+  connection: any;
 
   /**
+   * Instantiate a client pointing to the Event Hub given by this configuration.
+   *
    * @constructor
    * @param {ConnectionConfig} config - The connection configuration to create the EventHub Client.
+   * @param {TokenProvider} [tokenProvider] - The token provider that provides the token for authentication.
    */
   constructor(config: ConnectionConfig, tokenProvider?: TokenProvider) {
-    this._config = config;
+    this.config = config;
     if (!tokenProvider) {
       tokenProvider = new SasTokenProvider(config.endpoint, config.sharedAccessKeyName, config.sharedAccessKey);
     }
-    this._tokenProvider = tokenProvider;
+    this.tokenProvider = tokenProvider;
   }
 
   /**
@@ -101,19 +97,19 @@ class EventHubClient {
    * @returns {Promise<void>}
    */
   async open(useSaslPlain?: boolean): Promise<void> {
-    if (!this._connection) {
+    if (!this.connection) {
       const connectOptions: rheaPromise.ConnectionOptions = {
         transport: Constants.TLS,
-        host: this._config.host,
-        hostname: this._config.host,
-        username: this._config.sharedAccessKeyName,
+        host: this.config.host,
+        hostname: this.config.host,
+        username: this.config.sharedAccessKeyName,
         port: 5671,
         reconnect_limit: 100
       };
       if (useSaslPlain) {
-        connectOptions.password = this._config.sharedAccessKey;
+        connectOptions.password = this.config.sharedAccessKey;
       }
-      this._connection = await rheaPromise.connect(connectOptions);
+      this.connection = await rheaPromise.connect(connectOptions);
     }
   }
 
@@ -123,8 +119,8 @@ class EventHubClient {
    * @returns {Promise}
    */
   async close(): Promise<any> {
-    if (this._connection) {
-      await this._connection.close();
+    if (this.connection) {
+      await this.connection.close();
     }
   }
 
@@ -178,12 +174,13 @@ class EventHubClient {
    * @returns {Promise<EventHubSender>}
    */
   async createSender(partitionId?: string): Promise<EventHubSender> {
-    await this.open();
-    const audience = `${this._config.endpoint}${this._config.entityPath}`;
-    await cbs.negotiateClaim(audience, this._connection, this._tokenProvider);
-    let senderSession = await rheaPromise.createSession(this._connection);
-    let sender = await rheaPromise.createSender(senderSession, this._config.entityPath as string);
-    return new EventHubSender(senderSession, sender);
+    try {
+      let ehSender = new EventHubSender(this, partitionId);
+      await ehSender.init();
+      return ehSender;
+    } catch (err) {
+      return Promise.reject(err);
+    }
   }
 
   /**
@@ -202,34 +199,13 @@ class EventHubClient {
    * @return {Promise<EventHubReceiver>}
    */
   async createReceiver(partitionId: string | number, options?: ReceiveOptions): Promise<EventHubReceiver> {
-    const consumerGroup = options && options.consumerGroup ? options.consumerGroup : Constants.defaultConsumerGroup;
-    const receiverAddress = `${this._config.entityPath}/ConsumerGroups/${consumerGroup}/Partitions/${partitionId}`;
-    let rcvrOptions: any = {
-      autoaccept: false
-    };
-    if (options) {
-      let filterClause = "";
-      if (options.startAfterTime) {
-        let time = (options.startAfterTime instanceof Date) ? options.startAfterTime.getTime() : options.startAfterTime;
-        filterClause = `${Constants.enqueuedTimeAnnotation} > "${time}"`;
-      } else if (options.startAfterOffset) {
-        filterClause = `${Constants.offsetAnnotation} > "${options.startAfterOffset}"`;
-      } else if (options.customFilter) {
-        filterClause = options.customFilter;
-      }
-
-      if (filterClause) {
-        rcvrOptions.filter = {
-          "apache.org:selector-filter:string": rhea.types.wrap_described(filterClause, 0x468C00000004)
-        };
-      }
+    try {
+      let ehReceiver = new EventHubReceiver(this, partitionId, options);
+      await ehReceiver.init();
+      return ehReceiver;
+    } catch (err) {
+      return Promise.reject(err);
     }
-    await this.open();
-    const audience = `${this._config.endpoint}${receiverAddress}`;
-    await cbs.negotiateClaim(audience, this._connection, this._tokenProvider);
-    let receiverSession = await rheaPromise.createSession(this._connection);
-    let receiver = await rheaPromise.createReceiver(receiverSession, receiverAddress, rcvrOptions);
-    return new EventHubReceiver(receiverSession, receiver);
   }
 
   /**
@@ -251,7 +227,7 @@ class EventHubClient {
           },
           application_properties: {
             operation: Constants.readOperation,
-            name: this._config.entityPath as string,
+            name: this.config.entityPath as string,
             type: `com.microsoft:${type}`
           }
         };
@@ -261,7 +237,7 @@ class EventHubClient {
 
         const rxopt: any = { name: replyTo, target: { address: replyTo } };
         await this.open();
-        const session = await rheaPromise.createSession(this._connection);
+        const session = await rheaPromise.createSession(this.connection);
         const [sender, receiver] = await Promise.all([
           rheaPromise.createSender(session, endpoint, {}),
           rheaPromise.createReceiver(session, endpoint, rxopt)
@@ -290,6 +266,7 @@ class EventHubClient {
    * @method fromConnectionString
    * @param {string} connectionString - Connection string of the form 'Endpoint=sb://my-servicebus-namespace.servicebus.windows.net/;SharedAccessKeyName=my-SA-name;SharedAccessKey=my-SA-key'
    * @param {string} [path] - Event Hub path of the form 'my-event-hub-name'
+   * @param {TokenProvider} [tokenProvider] - An instance of the token provider that provides the token for authentication.
    * @returns {EventHubClient} - An instance of the eventhub client.
    */
   static fromConnectionString(connectionString: string, path?: string, tokenProvider?: TokenProvider): EventHubClient {
@@ -301,5 +278,3 @@ class EventHubClient {
     return new EventHubClient(config, tokenProvider);
   }
 }
-
-export { ReceiveOptions, EventHubRuntimeInformation, EventHubPartitionRuntimeInformation, EventHubClient };

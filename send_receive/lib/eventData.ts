@@ -8,7 +8,6 @@ export interface EventData {
   readonly offset?: string;
   readonly sequenceNumber?: number;
   readonly annotations?: EventData.Dictionary<any>;
-  readonly systemProperties?: EventData.Dictionary<any>;
   properties?: EventData.Dictionary<any>;
   applicationProperties?: EventData.Dictionary<any>;
 }
@@ -31,7 +30,6 @@ export namespace EventData {
     }
     if (msg.properties) {
       data.properties = msg.properties;
-      data.systemProperties = msg.properties;
     }
     if (msg.application_properties) {
       data.applicationProperties = msg.application_properties;

@@ -12,7 +12,7 @@ export async function connect(options: ConnectionOptions): Promise<any> {
       resolve(connection);
     }
 
-    function onClose(err: any): void  {
+    function onClose(err: any): void {
       connection.removeListener('connection_open', onOpen);
       connection.removeListener('connection_close', onClose);
       connection.removeListener('disconnected', onClose);
@@ -29,13 +29,13 @@ export async function createSession(connection: any): Promise<any> {
   return new Promise((resolve, reject) => {
     const session = connection.create_session();
 
-    function onOpen(context: any): void  {
+    function onOpen(context: any): void {
       session.removeListener('session_open', onOpen);
       session.removeListener('session_close', onClose);
       resolve(session);
     }
 
-    function onClose(err: any): void  {
+    function onClose(err: any): void {
       session.removeListener('session_open', onOpen);
       session.removeListener('session_close', onClose);
       reject(err);
@@ -56,13 +56,13 @@ export async function createSender(session: any, path: string, options?: any): P
   return new Promise((resolve, reject) => {
     const sender = session.attach_sender(path, options);
 
-    function onOpen(context: any): void  {
+    function onOpen(context: any): void {
       sender.removeListener('sendable', onOpen);
       sender.removeListener('sender_close', onClose);
       resolve(sender);
     }
 
-    function onClose(err: any): void  {
+    function onClose(err: any): void {
       sender.removeListener('sendable', onOpen);
       sender.removeListener('sender_close', onClose);
       reject(err);
@@ -81,13 +81,13 @@ export async function createReceiver(session: any, path: string, options?: any):
   return new Promise((resolve, reject) => {
     const receiver = session.attach_receiver(options);
 
-    function onOpen(context: any): void  {
+    function onOpen(context: any): void {
       receiver.removeListener('receiver_open', onOpen);
       receiver.removeListener('receiver_close', onClose);
       resolve(receiver);
     }
 
-    function onClose(err: any): void  {
+    function onClose(err: any): void {
       receiver.removeListener('receiver_open', onOpen);
       receiver.removeListener('receiver_close', onClose);
       reject(err);
@@ -98,14 +98,6 @@ export async function createReceiver(session: any, path: string, options?: any):
   });
 }
 
-export interface ParsedConnectionString {
-  Endpoint: string;
-  SharedAccessKeyName: string;
-  SharedAccessKey: string;
-  EntityPath?: string;
-  [x: string]: any;
-}
-
 export interface ConnectionOptions {
   transport?: string;
   host: string;
@@ -114,15 +106,5 @@ export interface ConnectionOptions {
   reconnect_limit?: number;
   username: string;
   password?: string;
-}
-
-export function parseConnectionString(connectionString: string): ParsedConnectionString {
-  return connectionString.split(';').reduce((acc, part) => {
-    const splitIndex = part.indexOf('=');
-    return {
-      ...acc,
-      [part.substring(0, splitIndex)]: part.substring(splitIndex + 1)
-    };
-  }, {} as any);
 }
 
