@@ -70,24 +70,28 @@ export class EventHubReceiver extends EventEmitter {
       await cbs.negotiateClaim(audience, this.client.connection, tokenObject);
       if (!this._session && !this._receiver) {
         let rcvrOptions: any = {
-          autoaccept: false
+          autoaccept: false,
+          source: {}
         };
         if (this.options) {
           let filterClause = "";
           if (this.options.startAfterTime) {
             let time = (this.options.startAfterTime instanceof Date) ? this.options.startAfterTime.getTime() : this.options.startAfterTime;
-            filterClause = `${Constants.enqueuedTimeAnnotation} > "${time}"`;
+            filterClause = `${Constants.enqueuedTimeAnnotation} > '${time}'`;
           } else if (this.options.startAfterOffset) {
-            filterClause = `${Constants.offsetAnnotation} > "${this.options.startAfterOffset}"`;
+            filterClause = `${Constants.offsetAnnotation} > '${this.options.startAfterOffset}'`;
           } else if (this.options.customFilter) {
             filterClause = this.options.customFilter;
           }
 
           if (filterClause) {
-            rcvrOptions.filter = {
+            rcvrOptions.source.filter = {
               "apache.org:selector-filter:string": rhea.types.wrap_described(filterClause, 0x468C00000004)
             };
           }
+          // if (filterClause) {
+          //   rcvrOptions.source.filter = rhea.filter.selector(filterClause);
+          // }
         }
         this._session = await rheaPromise.createSession(this.client.connection);
         this._receiver = await rheaPromise.createReceiver(this._session, this.address, rcvrOptions);

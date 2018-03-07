@@ -15,25 +15,29 @@ export class EventHubSender extends EventEmitter {
   name?: string;
   client: EventHubClient;
   partitionId?: string;
+  address: string;
   private _sender: any;
   private _session: any;
 
   constructor(client: EventHubClient, partitionId?: string) {
     super();
     this.client = client;
+    this.address = this.client.config.entityPath as string;
     this.partitionId = partitionId;
+    if (this.partitionId !== null && this.partitionId !== undefined) {
+      this.address += `/Partitions/${this.partitionId}`;
+    }
   }
 
   async init(): Promise<void> {
     try {
       await this.client.open();
-      let audience = `${this.client.config.endpoint}${this.client.config.entityPath}`;
-      if (this.partitionId) audience += `/${this.partitionId}`;
+      let audience = `${this.client.config.endpoint}${this.address}`;
       const tokenObject = this.client.tokenProvider.getToken(audience);
       await cbs.negotiateClaim(audience, this.client.connection, tokenObject);
       if (!this._session && !this._sender) {
         this._session = await rheaPromise.createSession(this.client.connection);
-        this._sender = await rheaPromise.createSender(this._session, this.client.config.entityPath as string);
+        this._sender = await rheaPromise.createSender(this._session, this.address);
         this.name = this._sender.name;
       }
 

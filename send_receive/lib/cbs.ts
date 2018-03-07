@@ -64,10 +64,10 @@ export async function negotiateClaim(audience: string, connection: any, tokenObj
           type: tokenObject.tokenType
         }
       };
-      receiver.on(Constants.message, ({ message, delivery }) => {
-        const code: number = message.application_properties[Constants.statusCode];
-        const desc: string = message.application_properties[Constants.statusDescription];
-        const errorCondition: string | undefined = message.application_properties[Constants.errorCondition];
+      receiver.on(Constants.message, (result: any) => {
+        const code: number = result.message.application_properties[Constants.statusCode];
+        const desc: string = result.message.application_properties[Constants.statusDescription];
+        const errorCondition: string | undefined = result.message.application_properties[Constants.errorCondition];
         if (code > 200 && code < 300) {
           resolve();
         } else {

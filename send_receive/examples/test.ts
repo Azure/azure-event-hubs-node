@@ -1,7 +1,9 @@
-import { EventHubClient } from "../lib/index";
+import { EventHubClient } from "../lib";
 
-const str = process.env["SB_CONNECTION_STRING"] || "";
-const path = process.env["ENTITY_PATH"] || "";
+const connectionString = "SB_CONNECTION_STRING";
+const entityPath = "ENTITY_PATH";
+const str = process.env[connectionString] || "";
+const path = process.env[entityPath] || "";
 
 
 async function main(): Promise<void> {
@@ -9,12 +11,12 @@ async function main(): Promise<void> {
   const sender = await client.createSender();
   const receiver = await client.createReceiver("0");
   sender.send("Hey Amar!!");
-  console.log("Sent Message");
-  receiver.on("message", (eventData) => {
-    console.log(eventData);
+  receiver.on("message", (eventData: any) => {
+    console.log(">>> EventDataObject: ", eventData);
+    console.log("### Actual message:", eventData.body ? eventData.body.toString() : null);
   });
 }
 
 main().catch((err) => {
   console.log("error: ", err);
-})
+});
