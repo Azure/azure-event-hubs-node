@@ -8,7 +8,6 @@ async function main(): Promise<void> {
   const client = EventHubClient.fromConnectionString(str, path);
   let info = await client.getHubRuntimeInformation();
   console.log("info: ", info);
-  console.log("Hello!!!");
 }
 
 main().catch((err) => {

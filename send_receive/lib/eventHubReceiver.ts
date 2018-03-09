@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+
 import { EventEmitter } from "events";
 import { EventData } from "./eventData";
 import * as Constants from "./util/constants";
@@ -69,9 +72,11 @@ export class EventHubReceiver extends EventEmitter {
       const tokenObject = this.client.tokenProvider.getToken(audience);
       await cbs.negotiateClaim(audience, this.client.connection, tokenObject);
       if (!this._session && !this._receiver) {
-        let rcvrOptions: any = {
+        let rcvrOptions: rheaPromise.ReceiverOptions = {
           autoaccept: false,
-          source: {}
+          source: {
+            address: this.address
+          }
         };
         if (this.options) {
           let filterClause = "";
@@ -89,12 +94,9 @@ export class EventHubReceiver extends EventEmitter {
               "apache.org:selector-filter:string": rhea.types.wrap_described(filterClause, 0x468C00000004)
             };
           }
-          // if (filterClause) {
-          //   rcvrOptions.source.filter = rhea.filter.selector(filterClause);
-          // }
         }
         this._session = await rheaPromise.createSession(this.client.connection);
-        this._receiver = await rheaPromise.createReceiver(this._session, this.address, rcvrOptions);
+        this._receiver = await rheaPromise.createReceiver(this._session, rcvrOptions);
         this.name = this._receiver.name;
       }
       this._ensureTokenRenewal();

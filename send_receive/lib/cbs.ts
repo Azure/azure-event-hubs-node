@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+
 import { TokenInfo } from "./auth/token";
 import * as rheaPromise from "./rhea-promise";
 import * as uuid from "uuid/v4";
@@ -34,15 +37,18 @@ async function init(connection: any): Promise<void> {
   }
   if (!session && !sender && !receiver) {
     session = await rheaPromise.createSession(connection);
-    let rxOpt = {
+    let rxOpt: rheaPromise.ReceiverOptions = {
+      source: {
+        address: endpoint
+      },
       name: replyTo,
       target: {
         address: replyTo
       }
     };
     [sender, receiver] = await Promise.all([
-      rheaPromise.createSender(session, endpoint),
-      rheaPromise.createReceiver(session, endpoint, rxOpt)
+      rheaPromise.createSender(session, { target: { address: endpoint } }),
+      rheaPromise.createReceiver(session, rxOpt)
     ]);
   }
 }

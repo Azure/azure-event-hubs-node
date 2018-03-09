@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+
 import * as rheaPromise from "./rhea-promise";
 import * as uuid from "uuid/v4";
 import * as Constants from "./util/constants";
@@ -235,12 +238,12 @@ export class EventHubClient {
           request.application_properties.partition = partitionId;
         }
 
-        const rxopt: any = { name: replyTo, target: { address: replyTo } };
+        const rxopt: rheaPromise.ReceiverOptions = { source: { address: endpoint }, name: replyTo, target: { address: replyTo } };
         await this.open();
         const session = await rheaPromise.createSession(this.connection);
         const [sender, receiver] = await Promise.all([
-          rheaPromise.createSender(session, endpoint, {}),
-          rheaPromise.createReceiver(session, endpoint, rxopt)
+          rheaPromise.createSender(session, { target: { address: endpoint } }),
+          rheaPromise.createReceiver(session, rxopt)
         ]);
 
         // TODO: Handle timeout incase SB/EH does not send a response.

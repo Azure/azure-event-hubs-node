@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+
 export enum TokenType {
   cbsTokenTypeJwt = "jwt",
   cbsTokenTypeSas = "servicebus.windows.net:sastoken"
@@ -18,5 +21,9 @@ export interface TokenProvider {
    * @property {number} tokenValidTimeInSeconds - The number of seconds for which the token is valid. Default = 3600 seconds (1 hour).
    */
   tokenValidTimeInSeconds: number;
+  /**
+   * Gets the token.
+   * @param {string} [audience] - The audience for which the token is desired.
+   */
   getToken(audience?: string): TokenInfo;
 }
