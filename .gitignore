@@ -192,7 +192,6 @@ $RECYCLE.BIN/
 **/coverage/
 
 # VS Code stuff
-**/typings/**
 **/.vscode/**
 # C/C++ extension for VS Code
 .browse.VC.db*
