@@ -11,3 +11,7 @@ export {
 } from "./eventHubClient";
 
 export { TokenType, TokenProvider, TokenInfo } from "./auth/token";
+
+export import EventHubManagementClient = require("azure-arm-eventhub");
+import * as EventHubManagementModels from "azure-arm-eventhub/lib/models";
+export { EventHubManagementModels };

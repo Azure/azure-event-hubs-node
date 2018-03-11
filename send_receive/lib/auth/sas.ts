@@ -56,8 +56,8 @@ export class SasTokenProvider implements TokenProvider {
    * @param {string} [audience] - The audience for which the token is desired. If not
    * provided then the Endpoint from the connection string will be applied.
    */
-  getToken(audience?: string): TokenInfo {
-    return this._createToken(Math.floor(Date.now() / 1000) + 3600, audience);
+  getToken(audience?: string): Promise<TokenInfo> {
+    return Promise.resolve(this._createToken(Math.floor(Date.now() / 1000) + this.tokenValidTimeInSeconds, audience));
   }
 
   /**

@@ -92,11 +92,36 @@ export async function createReceiver(session: any, options?: ReceiverOptions): P
   });
 }
 
-export interface ConnectionOptions {
+/**
+ * Defines the common set of properties that are applicable for a connection, session and a link (sender, receiver).
+ * @interface EntityOptions
+ */
+export interface EntityOptions {
   /**
-   * @property {string} [transport] - The transport option.
+   * @property {any} [desired_capabilities] Extension capabilities the sender can use if the receiver supports them.
    */
-  transport?: 'tls' | 'ssl' | 'tcp';
+  desired_capabilities?: any;
+  /**
+   * @property {any} [offered_capabilities] Extension capabilities the sender supports.
+   */
+  offered_capabilities?: any;
+  /**
+   * @property {object} [properties] Properties of the entity (connection, session, link) contain a set of fields
+   * intended to provide more information about the entity.
+   */
+  properties?: { [x: string]: any };
+}
+
+/**
+ * Defines the options that can be provided while creating a connection.
+ * @interface ConnectionOptions
+ * @extends EntityOptions
+ */
+export interface ConnectionOptions extends EntityOptions {
+  /**
+   * @property {string} username - The username.
+   */
+  username: string;
   /**
    * @property {string} host - The host to connect to.
    */
@@ -106,11 +131,25 @@ export interface ConnectionOptions {
    */
   hostname: string;
   /**
-   * @property {number} port - The port number 5671 or 5672 at which to connect to.
+   * @property {number} port - The port number (5671 or 5672) at which to connect to.
    */
   port: number;
   /**
-   * @property {boolean} [reconnect] if true (the default), the library will automatically attempt to
+   * @property {string} [transport] - The transport option.
+   */
+  transport?: 'tls' | 'ssl' | 'tcp';
+  /**
+   * @property {string} [container_id] The id of the source container. If not provided then
+   * this will a guid string.
+   */
+  container_id?: string;
+  /**
+   * @property {string} [id] A unqiue name for the connection. If not provided then this will be
+   * a string in the following format: "connection-<counter>".
+   */
+  id?: string;
+  /**
+   * @property {boolean} [reconnect] if true (default), the library will automatically attempt to
    * reconnect if disconnected.
    * - if false, automatic reconnect will be disabled
    * - if it is a numeric value, it is interpreted as the delay between
@@ -118,28 +157,57 @@ export interface ConnectionOptions {
    */
   reconnect?: boolean;
   /**
-   * @property {number} [reconnect_limit] maximum number of reconnect attempts. Applicable only when reconnect is true.
+   * @property {number} [reconnect_limit] maximum number of reconnect attempts.
+   * Applicable only when reconnect is true.
    */
   reconnect_limit?: number;
   /**
-   * @property {number} [initial_reconnect_delay] - Time to wait in milliseconds before attempting to reconnect.
+   * @property {number} [initial_reconnect_delay] - Time to wait in milliseconds before
+   * attempting to reconnect. Applicable only when reconnect is true or a number is
+   * provided for reconnect.
    */
   initial_reconnect_delay?: number;
   /**
-   * @property {number} [max_reconnect_delay] - Maximum reconnect delay in milliseconds before attempting to reconnect.
+   * @property {number} [max_reconnect_delay] - Maximum reconnect delay in milliseconds
+   * before attempting to reconnect. Applicable only when reconnect is true.
    */
   max_reconnect_delay?: number;
   /**
-   * @property {string} username - The username.
-   */
-  username: string;
-  /**
-   * @property {string} username - The secret.
+   * @property {string} [password] - The secret key to be used while establishing the connection.
    */
   password?: string;
+  /**
+   * @property {number} [max_frame_size] The largest frame size that the sending peer
+   * is able to accept on this connection. Default: 4294967295
+   */
+  max_frame_size?: number;
+  /**
+   * @property {number} [idle_time_out] The largest frame size that the sending
+   * peer is able to accept on this connection.
+   */
+  idle_time_out?: number;
+  /**
+   * @property {number} [channel_max] The highest channel number that can be used on the connection.
+   */
+  channel_max?: number;
+  /**
+   * @property {string[]} [outgoing_locales] A list of the locales that the peer supports
+   * for sending informational text.
+   */
+  outgoing_locales?: string[];
+  /**
+   * @property {string[]} [incoming_locales] A list of locales that the sending peer
+   * permits for incoming informational text. This list is ordered in decreasing level of preference.
+   */
+  incoming_locales?: string[];
 }
 
-export interface LinkOptions {
+/**
+ * Defines the common set of options that can be provided while creating a link (sender, receiver).
+ * @interface LinkOptions
+ * @extends EntityOptions
+ */
+export interface LinkOptions extends EntityOptions {
   /**
    * @property {string} [name] The name of the link.
    * This should be unique for the container.
@@ -160,8 +228,16 @@ export interface LinkOptions {
    * disposition indicating settlement of the delivery from the sender.
    */
   rcv_settle_mode?: 0 | 1;
+  /**
+   * @property {number} [max_message_size] The maximum message size supported by the link endpoint.
+   */
+  max_message_size?: number;
 }
 
+/**
+ * Defines the options that can be provided while creating the source/target for a Sender or Receiver (link).
+ * @interface TerminusOptions
+ */
 export interface TerminusOptions {
   /**
    * @property {string} [address] - The AMQP address as target for this terminus.
@@ -191,6 +267,11 @@ export interface TerminusOptions {
   durable?: number;
 }
 
+/**
+ * Defines the options that can be set while creating the Receiver (link).
+ * @interface ReceiverOptions
+ * @extends LinkOptions
+ */
 export interface ReceiverOptions extends LinkOptions {
   /**
    * @property {object} [prefetch]  A 'prefetch' window controlling the flow of messages over
@@ -203,7 +284,7 @@ export interface ReceiverOptions extends LinkOptions {
    */
   autoaccept?: boolean;
   /**
-   * @property {object} [source]  The source from which messages are received.
+   * @property {object} source  The source from which messages are received.
    */
   source: TerminusOptions;
   /**
@@ -212,13 +293,18 @@ export interface ReceiverOptions extends LinkOptions {
   target?: TerminusOptions;
 }
 
+/**
+ * Defines the options that can be set while creating the Sender (link).
+ * @interface SenderOptions
+ * @extends LinkOptions
+ */
 export interface SenderOptions extends LinkOptions {
   /**
    * @property {boolean} [autosettle] Whether sent messages should be automatically settled once the peer settles them. Defaults to true.
    */
   autosettle?: boolean;
   /**
-   * @property {object} [target]  - The target to which messages are sent
+   * @property {object} target  - The target to which messages are sent
    */
   target: TerminusOptions;
   /**

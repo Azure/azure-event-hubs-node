@@ -7,11 +7,11 @@ const path = process.env[entityPath] || "";
 
 
 async function main(): Promise<void> {
-  const client = EventHubClient.fromConnectionString(str, path);
+  const client = EventHubClient.createFromConnectionString(str, path);
   console.log("Created EH client from connection string");
   const sender = await client.createSender("0");
   console.log("Created Sender for partition 0.");
-  const receiver = await client.createReceiver("0", { startAfterTime: Date.now() });
+  const receiver = await client.createReceiver("0", { filter: { startAfterTime: Date.now() }, enableReceiverRuntimeMetric: true });
   console.log("Created Receiver for partition 0 and CG $default.");
 
   const messageCount = 5;

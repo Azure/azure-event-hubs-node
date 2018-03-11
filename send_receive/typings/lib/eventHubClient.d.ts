@@ -1,10 +1,14 @@
+import { ApplicationTokenCredentials, DeviceTokenCredentials, UserTokenCredentials, MSITokenCredentials } from "ms-rest-azure";
 import { EventHubReceiver, EventHubSender, ConnectionConfig } from ".";
 import { TokenProvider } from "./auth/token";
 export interface ReceiveOptions {
-    startAfterTime?: Date | number;
-    startAfterOffset?: string;
-    customFilter?: string;
+    filter?: {
+        startAfterTime?: Date | number;
+        startAfterOffset?: string;
+        customFilter?: string;
+    };
     consumerGroup?: string;
+    enableReceiverRuntimeMetric?: boolean;
 }
 export interface EventHubRuntimeInformation {
     /**
@@ -71,7 +75,8 @@ export declare class EventHubClient {
      */
     constructor(config: ConnectionConfig, tokenProvider?: TokenProvider);
     /**
-     * Opens the AMQP connection to the Event Hub for this client, returning a promise that will be resolved when the connection is completed.
+     * Opens the AMQP connection to the Event Hub for this client, returning a promise
+     * that will be resolved when the connection is completed.
      * @method open
      *
      * @param {boolean} [useSaslPlain] - True for using sasl plain mode for authentication, false otherwise.
@@ -79,7 +84,8 @@ export declare class EventHubClient {
      */
     open(useSaslPlain?: boolean): Promise<void>;
     /**
-     * Closes the AMQP connection to the Event Hub for this client, returning a promise that will be resolved when disconnection is completed.
+     * Closes the AMQP connection to the Event Hub for this client,
+     * returning a promise that will be resolved when disconnection is completed.
      * @method close
      * @returns {Promise}
      */
@@ -91,28 +97,30 @@ export declare class EventHubClient {
      */
     getHubRuntimeInformation(): Promise<EventHubRuntimeInformation>;
     /**
-     * Provides an array of partitionIds
+     * Provides an array of partitionIds.
+     * @method getPartitionIds
+     * @returns {Promise<Array<string>>}
      */
     getPartitionIds(): Promise<Array<string>>;
     /**
-     *
-     * @param partitionId
+     * Provides information about the specified partition.
+     * @method getPartitionInformation
+     * @param {(string|number)} partitionId Partition ID for which partition information is required.
      */
-    getPartitionInformation(partitionId: string): Promise<EventHubPartitionRuntimeInformation>;
+    getPartitionInformation(partitionId: string | number): Promise<EventHubPartitionRuntimeInformation>;
     /**
      * Creates a sender to the given event hub, and optionally to a given partition.
-     *
-     * @param {string} [partitionId] Partition ID to which it will send messages.
+     * @method createSender
+     * @param {(string|number)} [partitionId] Partition ID to which it will send messages.
      * @returns {Promise<EventHubSender>}
      */
-    createSender(partitionId?: string): Promise<EventHubSender>;
+    createSender(partitionId?: string | number): Promise<EventHubSender>;
     /**
      * Creates a receiver for the given event hub, consumer group, and partition.
      * Receivers are event emitters, watch for 'message' event.
-     *
      * @method createReceiver
-     * @param {(string | number)} partitionId               Partition ID from which to receive.
-     * @param {ReceiveOptions} [options]                               Options for how you'd like to connect. Only one can be specified.
+     * @param {(string | number)} partitionId             Partition ID from which to receive.
+     * @param {ReceiveOptions} [options]                  Options for how you'd like to connect. Only one can be specified.
      * @param {(Date|Number)} options.startAfterTime      Only receive messages enqueued after the given time.
      * @param {string} options.startAfterOffset           Only receive messages after the given offset.
      * @param {string} options.customFilter               If you want more fine-grained control of the filtering.
@@ -126,16 +134,23 @@ export declare class EventHubClient {
      * @private
      * Helper method to make the management request
      * @param {string} type - The type of entity requested for. Valid values are "eventhub", "partition"
-     * @param {string} [partitionId] - The partitionId. Required only when type is "partition".
+     * @param {string | number} [partitionId] - The partitionId. Required only when type is "partition".
      */
     private _makeManagementRequest(type, partitionId?);
     /**
      * Creates an EventHub Client from connection string.
-     * @method fromConnectionString
+     * @method createFromConnectionString
      * @param {string} connectionString - Connection string of the form 'Endpoint=sb://my-servicebus-namespace.servicebus.windows.net/;SharedAccessKeyName=my-SA-name;SharedAccessKey=my-SA-key'
-     * @param {string} [path] - Event Hub path of the form 'my-event-hub-name'
+     * @param {string} [path] - EventHub path of the form 'my-event-hub-name'
      * @param {TokenProvider} [tokenProvider] - An instance of the token provider that provides the token for authentication.
      * @returns {EventHubClient} - An instance of the eventhub client.
      */
-    static fromConnectionString(connectionString: string, path?: string, tokenProvider?: TokenProvider): EventHubClient;
+    static createFromConnectionString(connectionString: string, path?: string, tokenProvider?: TokenProvider): EventHubClient;
+    /**
+     * Creates an EventHub Client from AADTokenCredentials.
+     * @method
+     * @param {string} host - Fully qualified domain name for Event Hubs. Most likely, {yournamespace}.servicebus.windows.net
+     * @param {string} entityPath - EventHub path of the form 'my-event-hub-name'
+     */
+    static createFromAadTokenCredentials(host: string, entityPath: string, credentials: ApplicationTokenCredentials | UserTokenCredentials | DeviceTokenCredentials | MSITokenCredentials): EventHubClient;
 }

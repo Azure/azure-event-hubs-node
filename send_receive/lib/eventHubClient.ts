@@ -4,17 +4,22 @@
 import * as rheaPromise from "./rhea-promise";
 import * as uuid from "uuid/v4";
 import * as Constants from "./util/constants";
+import { ApplicationTokenCredentials, DeviceTokenCredentials, UserTokenCredentials, MSITokenCredentials } from "ms-rest-azure";
 import { EventHubReceiver, EventHubSender, ConnectionConfig } from ".";
 import { TokenProvider } from "./auth/token";
 import { SasTokenProvider } from "./auth/sas";
+import { AadTokenProvider } from "./auth/aad";
 const Buffer = require("buffer/").Buffer;
 
 
 export interface ReceiveOptions {
-  startAfterTime?: Date | number;
-  startAfterOffset?: string;
-  customFilter?: string;
+  filter?: {
+    startAfterTime?: Date | number;
+    startAfterOffset?: string;
+    customFilter?: string;
+  };
   consumerGroup?: string;
+  enableReceiverRuntimeMetric?: boolean;
 }
 
 export interface EventHubRuntimeInformation {
@@ -93,13 +98,17 @@ export class EventHubClient {
   }
 
   /**
-   * Opens the AMQP connection to the Event Hub for this client, returning a promise that will be resolved when the connection is completed.
+   * Opens the AMQP connection to the Event Hub for this client, returning a promise
+   * that will be resolved when the connection is completed.
    * @method open
    *
    * @param {boolean} [useSaslPlain] - True for using sasl plain mode for authentication, false otherwise.
    * @returns {Promise<void>}
    */
   async open(useSaslPlain?: boolean): Promise<void> {
+    if (useSaslPlain && typeof useSaslPlain !== "boolean") {
+      throw new Error("'useSaslPlain' must be of type 'boolean'.");
+    }
     if (!this.connection) {
       const connectOptions: rheaPromise.ConnectionOptions = {
         transport: Constants.TLS,
@@ -117,7 +126,8 @@ export class EventHubClient {
   }
 
   /**
-   * Closes the AMQP connection to the Event Hub for this client, returning a promise that will be resolved when disconnection is completed.
+   * Closes the AMQP connection to the Event Hub for this client,
+   * returning a promise that will be resolved when disconnection is completed.
    * @method close
    * @returns {Promise}
    */
@@ -145,7 +155,9 @@ export class EventHubClient {
   }
 
   /**
-   * Provides an array of partitionIds
+   * Provides an array of partitionIds.
+   * @method getPartitionIds
+   * @returns {Promise<Array<string>>}
    */
   async getPartitionIds(): Promise<Array<string>> {
     let runtimeInfo = await this.getHubRuntimeInformation();
@@ -153,10 +165,14 @@ export class EventHubClient {
   }
 
   /**
-   *
-   * @param partitionId
+   * Provides information about the specified partition.
+   * @method getPartitionInformation
+   * @param {(string|number)} partitionId Partition ID for which partition information is required.
    */
-  async getPartitionInformation(partitionId: string): Promise<EventHubPartitionRuntimeInformation> {
+  async getPartitionInformation(partitionId: string | number): Promise<EventHubPartitionRuntimeInformation> {
+    if (!partitionId || (partitionId && typeof partitionId !== "string" && typeof partitionId !== "number")) {
+      throw new Error("'partitionId' is a required parameter and must be of type: 'string' | 'number'.");
+    }
     const info: any = await this._makeManagementRequest(Constants.partition, partitionId);
     const partitionInfo: EventHubPartitionRuntimeInformation = {
       beginningSequenceNumber: info.begin_sequence_number,
@@ -172,11 +188,15 @@ export class EventHubClient {
 
   /**
    * Creates a sender to the given event hub, and optionally to a given partition.
-   *
-   * @param {string} [partitionId] Partition ID to which it will send messages.
+   * @method createSender
+   * @param {(string|number)} [partitionId] Partition ID to which it will send messages.
    * @returns {Promise<EventHubSender>}
    */
-  async createSender(partitionId?: string): Promise<EventHubSender> {
+  async createSender(partitionId?: string | number): Promise<EventHubSender> {
+    if (partitionId && typeof partitionId !== "string" && typeof partitionId !== "number") {
+      throw new Error("'partitionId' is a required parameter and must be of type: 'string' | 'number'.");
+    }
+
     try {
       let ehSender = new EventHubSender(this, partitionId);
       await ehSender.init();
@@ -189,10 +209,9 @@ export class EventHubClient {
   /**
    * Creates a receiver for the given event hub, consumer group, and partition.
    * Receivers are event emitters, watch for 'message' event.
-   *
    * @method createReceiver
-   * @param {(string | number)} partitionId               Partition ID from which to receive.
-   * @param {ReceiveOptions} [options]                               Options for how you'd like to connect. Only one can be specified.
+   * @param {(string | number)} partitionId             Partition ID from which to receive.
+   * @param {ReceiveOptions} [options]                  Options for how you'd like to connect. Only one can be specified.
    * @param {(Date|Number)} options.startAfterTime      Only receive messages enqueued after the given time.
    * @param {string} options.startAfterOffset           Only receive messages after the given offset.
    * @param {string} options.customFilter               If you want more fine-grained control of the filtering.
@@ -202,6 +221,10 @@ export class EventHubClient {
    * @return {Promise<EventHubReceiver>}
    */
   async createReceiver(partitionId: string | number, options?: ReceiveOptions): Promise<EventHubReceiver> {
+    if (!partitionId || (partitionId && typeof partitionId !== "string" && typeof partitionId !== "number")) {
+      throw new Error("'partitionId' is a required parameter and must be of type: 'string' | 'number'.");
+    }
+
     try {
       let ehReceiver = new EventHubReceiver(this, partitionId, options);
       await ehReceiver.init();
@@ -215,9 +238,12 @@ export class EventHubClient {
    * @private
    * Helper method to make the management request
    * @param {string} type - The type of entity requested for. Valid values are "eventhub", "partition"
-   * @param {string} [partitionId] - The partitionId. Required only when type is "partition".
+   * @param {string | number} [partitionId] - The partitionId. Required only when type is "partition".
    */
-  private async _makeManagementRequest(type: "eventhub" | "partition", partitionId?: string): Promise<any> {
+  private async _makeManagementRequest(type: "eventhub" | "partition", partitionId?: string | number): Promise<any> {
+    if (partitionId && typeof partitionId !== "string" && typeof partitionId !== "number") {
+      throw new Error("'partitionId' is a required parameter and must be of type: 'string' | 'number'.");
+    }
     return new Promise(async (resolve: any, reject: any) => {
       try {
         const endpoint = Constants.management;
@@ -266,18 +292,51 @@ export class EventHubClient {
 
   /**
    * Creates an EventHub Client from connection string.
-   * @method fromConnectionString
+   * @method createFromConnectionString
    * @param {string} connectionString - Connection string of the form 'Endpoint=sb://my-servicebus-namespace.servicebus.windows.net/;SharedAccessKeyName=my-SA-name;SharedAccessKey=my-SA-key'
-   * @param {string} [path] - Event Hub path of the form 'my-event-hub-name'
+   * @param {string} [path] - EventHub path of the form 'my-event-hub-name'
    * @param {TokenProvider} [tokenProvider] - An instance of the token provider that provides the token for authentication.
    * @returns {EventHubClient} - An instance of the eventhub client.
    */
-  static fromConnectionString(connectionString: string, path?: string, tokenProvider?: TokenProvider): EventHubClient {
+  static createFromConnectionString(connectionString: string, path?: string, tokenProvider?: TokenProvider): EventHubClient {
+    if (!connectionString || (connectionString && typeof connectionString !== "string")) {
+      throw new Error("'connectionString' is a required parameter and must be of type: 'string'.");
+    }
     const config = ConnectionConfig.create(connectionString, path);
 
     if (!config.entityPath) {
       throw new Error(`Either the connectionString must have "EntityPath=<path-to-entity>" or you must provide "path", while creating the client`);
     }
     return new EventHubClient(config, tokenProvider);
+  }
+
+  /**
+   * Creates an EventHub Client from AADTokenCredentials.
+   * @method
+   * @param {string} host - Fully qualified domain name for Event Hubs. Most likely, {yournamespace}.servicebus.windows.net
+   * @param {string} entityPath - EventHub path of the form 'my-event-hub-name'
+   */
+  static createFromAadTokenCredentials(host: string, entityPath: string, credentials: ApplicationTokenCredentials | UserTokenCredentials | DeviceTokenCredentials | MSITokenCredentials): EventHubClient {
+    if (!host || (host && typeof host !== "string")) {
+      throw new Error("'host' is a required parameter and must be of type: 'string'.");
+    }
+
+    if (!entityPath || (entityPath && typeof entityPath !== "string")) {
+      throw new Error("'entityPath' is a required parameter and must be of type: 'string'.");
+    }
+
+    if (!credentials ||
+      (credentials &&
+        !(credentials instanceof ApplicationTokenCredentials ||
+          credentials instanceof UserTokenCredentials ||
+          credentials instanceof DeviceTokenCredentials ||
+          credentials instanceof MSITokenCredentials))) {
+      throw new Error("'credentials' is a required parameter and must be an instance of ApplicationTokenCredentials | UserTokenCredentials | DeviceTokenCredentials | MSITokenCredentials.");
+    }
+
+    if (!host.endsWith("/")) host += "/";
+    const connectionString = `Endpoint=sb://${host};SharedAccessKeyName=defaultKeyName;SharedAccessKey=defaultKeyValue`;
+    const tokenProvider = new AadTokenProvider(credentials);
+    return EventHubClient.createFromConnectionString(connectionString, entityPath, tokenProvider);
   }
 }

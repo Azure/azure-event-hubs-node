@@ -19,12 +19,12 @@ import * as rhea from "rhea";
 export class EventHubSender extends EventEmitter {
   name?: string;
   client: EventHubClient;
-  partitionId?: string;
+  partitionId?: string | number;
   address: string;
   private _sender: any;
   private _session: any;
 
-  constructor(client: EventHubClient, partitionId?: string) {
+  constructor(client: EventHubClient, partitionId?: string | number) {
     super();
     this.client = client;
     this.address = this.client.config.entityPath as string;
@@ -42,7 +42,7 @@ export class EventHubSender extends EventEmitter {
     try {
       await this.client.open();
       let audience = `${this.client.config.endpoint}${this.address}`;
-      const tokenObject = this.client.tokenProvider.getToken(audience);
+      const tokenObject = await this.client.tokenProvider.getToken(audience);
       await cbs.negotiateClaim(audience, this.client.connection, tokenObject);
       if (!this._session && !this._sender) {
         this._session = await rheaPromise.createSession(this.client.connection);

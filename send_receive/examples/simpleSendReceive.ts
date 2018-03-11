@@ -7,9 +7,9 @@ const path = process.env[entityPath] || "";
 
 
 async function main(): Promise<void> {
-  const client = EventHubClient.fromConnectionString(str, path);
+  const client = EventHubClient.createFromConnectionString(str, path);
   const sender = await client.createSender("0");
-  const receiver = await client.createReceiver("0");
+  const receiver = await client.createReceiver("0", { enableReceiverRuntimeMetric: true });
   sender.send({ body: "Hello awesome world!!" });
   receiver.on("message", (eventData: any) => {
     console.log(">>> EventDataObject: ", eventData);

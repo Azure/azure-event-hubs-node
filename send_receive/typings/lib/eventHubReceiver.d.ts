@@ -7,6 +7,7 @@ export declare class EventHubReceiver extends EventEmitter {
     partitionId: string | number;
     consumerGroup: string;
     address: string;
+    enableReceiverRuntimeMetric: boolean;
     options?: ReceiveOptions;
     private _receiver;
     private _session;
@@ -14,13 +15,16 @@ export declare class EventHubReceiver extends EventEmitter {
      * Instantiate a new receiver from the AMQP `Receiver`. Used by `EventHubClient`.
      *
      * @constructor
-     * @param {EventHubClient} client                     The EventHub client.
-     * @param {(string | number)} partitionId             Partition ID from which to receive.
-     * @param {ReceiveOptions} [options]                  Options for how you'd like to connect. Only one can be specified.
-     * @param {(Date|Number)} options.startAfterTime      Only receive messages enqueued after the given time.
-     * @param {string} options.startAfterOffset           Only receive messages after the given offset.
-     * @param {string} options.customFilter               If you want more fine-grained control of the filtering.
-     * @param {string} options.consumerGroup              Consumer group from which to receive.
+     * @param {EventHubClient} client                            The EventHub client.
+     * @param {(string | number)} partitionId                    Partition ID from which to receive.
+     * @param {ReceiveOptions} [options]                         Options for how you'd like to connect.
+     * @param {string} options.consumerGroup                     Consumer group from which to receive.
+     * @param {boolean} options.enableReceiverRuntimeMetric      Whether the runtime metric of a receiver is enabled
+     * @param {ReceiveOptions.filter} [options.filter]           Filter settings on the receiver. Only one of
+     * startAfterTime, startAfterOffset, customFilter can be specified
+     * @param {(Date|Number)} options.filter.startAfterTime      Only receive messages enqueued after the given time.
+     * @param {string} options.filter.startAfterOffset           Only receive messages after the given offset.
+     * @param {string} options.filter.customFilter               If you want more fine-grained control of the filtering.
      *      See https://github.com/Azure/amqpnetlite/wiki/Azure%20Service%20Bus%20Event%20Hubs for details.
      */
     constructor(client: EventHubClient, partitionId: string | number, options?: ReceiveOptions);

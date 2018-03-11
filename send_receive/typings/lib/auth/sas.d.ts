@@ -37,7 +37,7 @@ export declare class SasTokenProvider implements TokenProvider {
      * @param {string} [audience] - The audience for which the token is desired. If not
      * provided then the Endpoint from the connection string will be applied.
      */
-    getToken(audience?: string): TokenInfo;
+    getToken(audience?: string): Promise<TokenInfo>;
     /**
      * Creates the sas token based on the provided information
      * @param {string | number} expiry - The time period in unix time after which the token will expire.

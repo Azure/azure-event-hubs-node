@@ -18,3 +18,4 @@ export declare const eventHub = "eventhub";
 export declare const cbsEndpoint = "$cbs";
 export declare const cbsReplyTo = "cbs";
 export declare const operationPutToken = "put-token";
+export declare const aadEventHubsAudience = "https://eventhubs.azure.net/";

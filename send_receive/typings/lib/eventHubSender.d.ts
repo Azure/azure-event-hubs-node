@@ -11,11 +11,11 @@ import { EventHubClient, EventData } from ".";
 export declare class EventHubSender extends EventEmitter {
     name?: string;
     client: EventHubClient;
-    partitionId?: string;
+    partitionId?: string | number;
     address: string;
     private _sender;
     private _session;
-    constructor(client: EventHubClient, partitionId?: string);
+    constructor(client: EventHubClient, partitionId?: string | number);
     /**
      * Negotiates the cbs claim and initializes the sender session on the connection.
      * @returns {Promoise<void>}

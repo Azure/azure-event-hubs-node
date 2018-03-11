@@ -6,10 +6,10 @@
   "license": "MIT",
   "main": "./lib",
   "dependencies": {
-    "rhea": "amqp/rhea#master",
-    "buffer": "^5.1.0",
+    "@types/node": "^8.0.37",
     "azure-arm-eventhub": "^1.2.0-preview",
-    "@types/node": "^8.0.37"
+    "buffer": "^5.1.0",
+    "rhea": "amqp/rhea#master"
   },
   "devDependencies": {
     "typescript": "^2.7.2",
