@@ -9,8 +9,10 @@ import { EventHubReceiver, EventHubSender, ConnectionConfig } from ".";
 import { TokenProvider } from "./auth/token";
 import { SasTokenProvider } from "./auth/sas";
 import { AadTokenProvider } from "./auth/aad";
-const Buffer = require("buffer/").Buffer;
+import * as os from "os";
+import * as process from "process";
 
+const Buffer = require("buffer/").Buffer;
 
 export interface ReceiveOptions {
   filter?: {
@@ -81,7 +83,7 @@ export class EventHubClient {
   config: ConnectionConfig;
   tokenProvider: TokenProvider;
   connection: any;
-
+  userAgent: string = "/js-event-hubs";
   /**
    * Instantiate a client pointing to the Event Hub given by this configuration.
    *
@@ -95,6 +97,7 @@ export class EventHubClient {
       tokenProvider = new SasTokenProvider(config.endpoint, config.sharedAccessKeyName, config.sharedAccessKey);
     }
     this.tokenProvider = tokenProvider;
+    this.userAgent = "/js-event-hubs";
   }
 
   /**
@@ -116,7 +119,14 @@ export class EventHubClient {
         hostname: this.config.host,
         username: this.config.sharedAccessKeyName,
         port: 5671,
-        reconnect_limit: 100
+        reconnect_limit: 100,
+        properties: {
+          product: "MSJSClient",
+          version: Constants.packageJsonInfo.version || "0.1.0",
+          platform: `(${os.arch()}-${os.type()}-${os.release()})`,
+          framework: `Node/${process.version}`,
+          "user-agent": this.userAgent
+        }
       };
       if (useSaslPlain) {
         connectOptions.password = this.config.sharedAccessKey;
@@ -257,7 +267,7 @@ export class EventHubClient {
           application_properties: {
             operation: Constants.readOperation,
             name: this.config.entityPath as string,
-            type: `com.microsoft:${type}`
+            type: `${Constants.vendorString}:${type}`
           }
         };
         if (partitionId && type === Constants.partition) {

@@ -19,3 +19,6 @@ export const cbsEndpoint = "$cbs";
 export const cbsReplyTo = "cbs";
 export const operationPutToken = "put-token";
 export const aadEventHubsAudience = "https://eventhubs.azure.net/";
+export const maxUserAgentLength = 128;
+export const packageJsonInfo = require("../../../package.json");
+export const vendorString = "com.microsoft";

@@ -66,6 +66,7 @@ export declare class EventHubClient {
     config: ConnectionConfig;
     tokenProvider: TokenProvider;
     connection: any;
+    userAgent: string;
     /**
      * Instantiate a client pointing to the Event Hub given by this configuration.
      *
