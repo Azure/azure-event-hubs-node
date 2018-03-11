@@ -17,7 +17,7 @@ export declare class AadTokenProvider implements TokenProvider {
     readonly tokenRenewalMarginInSeconds: number;
     /**
      * @property {number} tokenValidTimeInSeconds - The number of seconds for which the
-     * token is valid. A constant set to 3600 seconds (1 hour). Adal has a set valid time of
+     * token is valid. A constant set to 3599 seconds (~1 hour). Adal has a set valid time of
      * 1 hour (3600 seconds) when it refreshes the access token.
      */
     readonly tokenValidTimeInSeconds: number;

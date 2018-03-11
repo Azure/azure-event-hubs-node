@@ -22,10 +22,10 @@ export class AadTokenProvider implements TokenProvider {
   readonly tokenRenewalMarginInSeconds: number = 270;
   /**
    * @property {number} tokenValidTimeInSeconds - The number of seconds for which the
-   * token is valid. A constant set to 3600 seconds (1 hour). Adal has a set valid time of
+   * token is valid. A constant set to 3599 seconds (~1 hour). Adal has a set valid time of
    * 1 hour (3600 seconds) when it refreshes the access token.
    */
-  readonly tokenValidTimeInSeconds: number = 3600;
+  readonly tokenValidTimeInSeconds: number = 3599;
 
   constructor(credentials: ApplicationTokenCredentials | UserTokenCredentials | DeviceTokenCredentials | MSITokenCredentials) {
     if (!credentials ||
@@ -41,7 +41,7 @@ export class AadTokenProvider implements TokenProvider {
     }
     this.credentials = credentials;
     this.tokenRenewalMarginInSeconds = 270;
-    this.tokenValidTimeInSeconds = 3600;
+    this.tokenValidTimeInSeconds = 3599;
   }
 
   /**
@@ -56,8 +56,13 @@ export class AadTokenProvider implements TokenProvider {
         if (err) {
           reject(err);
         }
+        let expiresOn = Date.now();
+        if (result.expiresOn && result.expiresOn instanceof Date) {
+          expiresOn = result.expiresOn.getTime();
+        }
+        let expiry = Math.floor(expiresOn / 1000) + self.tokenValidTimeInSeconds - 5;
         let tokenObj: TokenInfo = {
-          expiry: Math.floor(Date.now() / 1000) + this.tokenValidTimeInSeconds - 5,
+          expiry: expiry,
           tokenType: TokenType.cbsTokenTypeJwt,
           token: result.accessToken
         };
