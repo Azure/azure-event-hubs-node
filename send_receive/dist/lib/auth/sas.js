@@ -33,7 +33,7 @@ class SasTokenProvider {
      * provided then the Endpoint from the connection string will be applied.
      */
     getToken(audience) {
-        return this._createToken(Math.floor(Date.now() / 1000) + 3600, audience);
+        return Promise.resolve(this._createToken(Math.floor(Date.now() / 1000) + this.tokenValidTimeInSeconds, audience));
     }
     /**
      * Creates the sas token based on the provided information

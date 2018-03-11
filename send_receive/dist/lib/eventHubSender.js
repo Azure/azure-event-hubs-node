@@ -33,7 +33,7 @@ class EventHubSender extends events_1.EventEmitter {
         try {
             await this.client.open();
             let audience = `${this.client.config.endpoint}${this.address}`;
-            const tokenObject = this.client.tokenProvider.getToken(audience);
+            const tokenObject = await this.client.tokenProvider.getToken(audience);
             await cbs.negotiateClaim(audience, this.client.connection, tokenObject);
             if (!this._session && !this._sender) {
                 this._session = await rheaPromise.createSession(this.client.connection);

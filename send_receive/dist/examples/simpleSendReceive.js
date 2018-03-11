@@ -6,9 +6,9 @@ const entityPath = "ENTITY_PATH";
 const str = process.env[connectionString] || "";
 const path = process.env[entityPath] || "";
 async function main() {
-    const client = lib_1.EventHubClient.fromConnectionString(str, path);
+    const client = lib_1.EventHubClient.createFromConnectionString(str, path);
     const sender = await client.createSender("0");
-    const receiver = await client.createReceiver("0");
+    const receiver = await client.createReceiver("0", { enableReceiverRuntimeMetric: true });
     sender.send({ body: "Hello awesome world!!" });
     receiver.on("message", (eventData) => {
         console.log(">>> EventDataObject: ", eventData);
@@ -18,4 +18,4 @@ async function main() {
 main().catch((err) => {
     console.log("error: ", err);
 });
-//# sourceMappingURL=simpleSendRecieve.js.map
+//# sourceMappingURL=simpleSendReceive.js.map

@@ -20,4 +20,5 @@ exports.eventHub = "eventhub";
 exports.cbsEndpoint = "$cbs";
 exports.cbsReplyTo = "cbs";
 exports.operationPutToken = "put-token";
+exports.aadEventHubsAudience = "https://eventhubs.azure.net/";
 //# sourceMappingURL=constants.js.map
