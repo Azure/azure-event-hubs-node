@@ -9,6 +9,8 @@ const ms_rest_azure_1 = require("ms-rest-azure");
 const _1 = require(".");
 const sas_1 = require("./auth/sas");
 const aad_1 = require("./auth/aad");
+const os = require("os");
+const process = require("process");
 const Buffer = require("buffer/").Buffer;
 class EventHubClient {
     /**
@@ -19,11 +21,13 @@ class EventHubClient {
      * @param {TokenProvider} [tokenProvider] - The token provider that provides the token for authentication.
      */
     constructor(config, tokenProvider) {
+        this.userAgent = "/js-event-hubs";
         this.config = config;
         if (!tokenProvider) {
             tokenProvider = new sas_1.SasTokenProvider(config.endpoint, config.sharedAccessKeyName, config.sharedAccessKey);
         }
         this.tokenProvider = tokenProvider;
+        this.userAgent = "/js-event-hubs";
     }
     /**
      * Opens the AMQP connection to the Event Hub for this client, returning a promise
@@ -44,7 +48,14 @@ class EventHubClient {
                 hostname: this.config.host,
                 username: this.config.sharedAccessKeyName,
                 port: 5671,
-                reconnect_limit: 100
+                reconnect_limit: 100,
+                properties: {
+                    product: "MSJSClient",
+                    version: Constants.packageJsonInfo.version || "0.1.0",
+                    platform: `(${os.arch()}-${os.type()}-${os.release()})`,
+                    framework: `Node/${process.version}`,
+                    "user-agent": this.userAgent
+                }
             };
             if (useSaslPlain) {
                 connectOptions.password = this.config.sharedAccessKey;
@@ -178,7 +189,7 @@ class EventHubClient {
                     application_properties: {
                         operation: Constants.readOperation,
                         name: this.config.entityPath,
-                        type: `com.microsoft:${type}`
+                        type: `${Constants.vendorString}:${type}`
                     }
                 };
                 if (partitionId && type === Constants.partition) {

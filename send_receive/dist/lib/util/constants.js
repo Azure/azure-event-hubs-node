@@ -21,4 +21,7 @@ exports.cbsEndpoint = "$cbs";
 exports.cbsReplyTo = "cbs";
 exports.operationPutToken = "put-token";
 exports.aadEventHubsAudience = "https://eventhubs.azure.net/";
+exports.maxUserAgentLength = 128;
+exports.packageJsonInfo = require("../../../package.json");
+exports.vendorString = "com.microsoft";
 //# sourceMappingURL=constants.js.map
