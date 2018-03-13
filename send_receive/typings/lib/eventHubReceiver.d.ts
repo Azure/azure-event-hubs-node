@@ -7,7 +7,6 @@ export declare class EventHubReceiver extends EventEmitter {
     partitionId: string | number;
     consumerGroup: string;
     address: string;
-    enableReceiverRuntimeMetric: boolean;
     options?: ReceiveOptions;
     private _receiver;
     private _session;
@@ -19,7 +18,6 @@ export declare class EventHubReceiver extends EventEmitter {
      * @param {(string | number)} partitionId                    Partition ID from which to receive.
      * @param {ReceiveOptions} [options]                         Options for how you'd like to connect.
      * @param {string} options.consumerGroup                     Consumer group from which to receive.
-     * @param {boolean} options.enableReceiverRuntimeMetric      Whether the runtime metric of a receiver is enabled
      * @param {ReceiveOptions.filter} [options.filter]           Filter settings on the receiver. Only one of
      * startAfterTime, startAfterOffset, customFilter can be specified
      * @param {(Date|Number)} options.filter.startAfterTime      Only receive messages enqueued after the given time.

@@ -16,7 +16,7 @@ async function main() {
     const credentials = await msrestAzure.loginWithServicePrincipalSecret(clientId, secret, domain, { tokenAudience: lib_1.aadEventHubsAudience });
     const client = lib_1.EventHubClient.createFromAadTokenCredentials(address, path, credentials);
     const sender = await client.createSender("0");
-    const receiver = await client.createReceiver("0", { enableReceiverRuntimeMetric: true });
+    const receiver = await client.createReceiver("0");
     sender.send({ body: "Hello awesome world!!" });
     receiver.on("message", (eventData) => {
         console.log(">>> EventDataObject: ", eventData);

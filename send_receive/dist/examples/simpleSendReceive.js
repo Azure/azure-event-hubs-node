@@ -8,7 +8,7 @@ const path = process.env[entityPath] || "";
 async function main() {
     const client = lib_1.EventHubClient.createFromConnectionString(str, path);
     const sender = await client.createSender("0");
-    const receiver = await client.createReceiver("0", { enableReceiverRuntimeMetric: true });
+    const receiver = await client.createReceiver("0");
     sender.send({ body: "Hello awesome world!!" });
     receiver.on("message", (eventData) => {
         console.log(">>> EventDataObject: ", eventData);

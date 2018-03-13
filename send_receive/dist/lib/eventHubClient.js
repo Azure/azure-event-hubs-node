@@ -61,18 +61,19 @@ class EventHubClient {
         }
     }
     /**
-     * Creates a receiver for the given event hub, consumer group, and partition.
-     * Receivers are event emitters, watch for 'message' event.
-     * @method createReceiver
-     * @param {(string | number)} partitionId             Partition ID from which to receive.
-     * @param {ReceiveOptions} [options]                  Options for how you'd like to connect. Only one can be specified.
-     * @param {(Date|Number)} options.startAfterTime      Only receive messages enqueued after the given time.
-     * @param {string} options.startAfterOffset           Only receive messages after the given offset.
-     * @param {string} options.customFilter               If you want more fine-grained control of the filtering.
-     * @param {string} options.consumerGroup              Consumer group from which to receive.
-     *      See https://github.com/Azure/amqpnetlite/wiki/Azure%20Service%20Bus%20Event%20Hubs for details.
+     * Instantiate a new receiver from the AMQP `Receiver`. Used by `EventHubClient`.
      *
-     * @return {Promise<EventHubReceiver>}
+     * @constructor
+     * @param {EventHubClient} client                            The EventHub client.
+     * @param {(string | number)} partitionId                    Partition ID from which to receive.
+     * @param {ReceiveOptions} [options]                         Options for how you'd like to connect.
+     * @param {string} options.consumerGroup                     Consumer group from which to receive.
+     * @param {ReceiveOptions.filter} [options.filter]           Filter settings on the receiver. Only one of
+     * startAfterTime, startAfterOffset, customFilter can be specified
+     * @param {(Date|Number)} options.filter.startAfterTime      Only receive messages enqueued after the given time.
+     * @param {string} options.filter.startAfterOffset           Only receive messages after the given offset.
+     * @param {string} options.filter.customFilter               If you want more fine-grained control of the filtering.
+     *      See https://github.com/Azure/amqpnetlite/wiki/Azure%20Service%20Bus%20Event%20Hubs for details.
      */
     async createReceiver(partitionId, options) {
         if (!partitionId || (partitionId && typeof partitionId !== "string" && typeof partitionId !== "number")) {

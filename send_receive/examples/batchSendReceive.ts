@@ -11,7 +11,7 @@ async function main(): Promise<void> {
   console.log("Created EH client from connection string");
   const sender = await client.createSender("0");
   console.log("Created Sender for partition 0.");
-  const receiver = await client.createReceiver("0", { filter: { startAfterTime: Date.now() }, enableReceiverRuntimeMetric: true });
+  const receiver = await client.createReceiver("0", { filter: { startAfterTime: Date.now() } });
   console.log("Created Receiver for partition 0 and CG $default.");
 
   const messageCount = 5;
