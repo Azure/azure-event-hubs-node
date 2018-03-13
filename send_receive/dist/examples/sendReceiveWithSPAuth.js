@@ -27,4 +27,4 @@ async function main() {
 main().catch((err) => {
     console.log("error: ", err);
 });
-//# sourceMappingURL=sendReceiveWithAad.js.map
+//# sourceMappingURL=sendReceiveWithSPAuth.js.map
