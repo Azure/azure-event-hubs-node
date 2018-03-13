@@ -3,7 +3,6 @@
 // Licensed under the MIT License. See License.txt in the project root for license information.
 Object.defineProperty(exports, "__esModule", { value: true });
 const rheaPromise = require("./rhea-promise");
-const uuid = require("uuid/v4");
 const Constants = require("./util/constants");
 const ms_rest_azure_1 = require("ms-rest-azure");
 const _1 = require(".");
@@ -11,7 +10,7 @@ const sas_1 = require("./auth/sas");
 const aad_1 = require("./auth/aad");
 const os = require("os");
 const process = require("process");
-const Buffer = require("buffer/").Buffer;
+const managementClient_1 = require("./managementClient");
 class EventHubClient {
     /**
      * Instantiate a client pointing to the Event Hub given by this configuration.
@@ -28,97 +27,18 @@ class EventHubClient {
         }
         this.tokenProvider = tokenProvider;
         this.userAgent = "/js-event-hubs";
-    }
-    /**
-     * Opens the AMQP connection to the Event Hub for this client, returning a promise
-     * that will be resolved when the connection is completed.
-     * @method open
-     *
-     * @param {boolean} [useSaslPlain] - True for using sasl plain mode for authentication, false otherwise.
-     * @returns {Promise<void>}
-     */
-    async open(useSaslPlain) {
-        if (useSaslPlain && typeof useSaslPlain !== "boolean") {
-            throw new Error("'useSaslPlain' must be of type 'boolean'.");
-        }
-        if (!this.connection) {
-            const connectOptions = {
-                transport: Constants.TLS,
-                host: this.config.host,
-                hostname: this.config.host,
-                username: this.config.sharedAccessKeyName,
-                port: 5671,
-                reconnect_limit: 100,
-                properties: {
-                    product: "MSJSClient",
-                    version: Constants.packageJsonInfo.version || "0.1.0",
-                    platform: `(${os.arch()}-${os.type()}-${os.release()})`,
-                    framework: `Node/${process.version}`,
-                    "user-agent": this.userAgent
-                }
-            };
-            if (useSaslPlain) {
-                connectOptions.password = this.config.sharedAccessKey;
-            }
-            this.connection = await rheaPromise.connect(connectOptions);
-        }
+        this.managementClient = new managementClient_1.ManagementClient(this.config.entityPath);
     }
     /**
      * Closes the AMQP connection to the Event Hub for this client,
      * returning a promise that will be resolved when disconnection is completed.
      * @method close
-     * @returns {Promise}
+     * @returns {Promise<any>}
      */
     async close() {
         if (this.connection) {
             await this.connection.close();
         }
-    }
-    /**
-     * Provides the eventhub runtime information.
-     * @method getHubRuntimeInformation
-     * @returns {Promise<EventHubRuntimeInformation>}
-     */
-    async getHubRuntimeInformation() {
-        const info = await this._makeManagementRequest(Constants.eventHub);
-        const runtimeInfo = {
-            path: info.name,
-            createdAt: new Date(info.created_at),
-            partitionCount: info.partition_count,
-            partitionIds: info.partition_ids,
-            type: info.type
-        };
-        return Promise.resolve(runtimeInfo);
-    }
-    /**
-     * Provides an array of partitionIds.
-     * @method getPartitionIds
-     * @returns {Promise<Array<string>>}
-     */
-    async getPartitionIds() {
-        let runtimeInfo = await this.getHubRuntimeInformation();
-        return runtimeInfo.partitionIds;
-    }
-    /**
-     * Provides information about the specified partition.
-     * @method getPartitionInformation
-     * @param {(string|number)} partitionId Partition ID for which partition information is required.
-     */
-    async getPartitionInformation(partitionId) {
-        if (!partitionId || (partitionId && typeof partitionId !== "string" && typeof partitionId !== "number")) {
-            throw new Error("'partitionId' is a required parameter and must be of type: 'string' | 'number'.");
-        }
-        const info = await this._makeManagementRequest(Constants.partition, partitionId);
-        const partitionInfo = {
-            beginningSequenceNumber: info.begin_sequence_number,
-            hubPath: info.name,
-            lastEnqueuedOffset: info.last_enqueued_offset,
-            lastEnqueuedTimeUtc: info.last_enqueued_time_utc,
-            lastSequenceNumber: info.last_enqueued_sequence_number,
-            partitionId: info.partition,
-            type: info.type
-        };
-        return partitionInfo;
     }
     /**
      * Creates a sender to the given event hub, and optionally to a given partition.
@@ -132,6 +52,7 @@ class EventHubClient {
         }
         try {
             let ehSender = new _1.EventHubSender(this, partitionId);
+            await this._open();
             await ehSender.init();
             return ehSender;
         }
@@ -159,6 +80,7 @@ class EventHubClient {
         }
         try {
             let ehReceiver = new _1.EventHubReceiver(this, partitionId, options);
+            await this._open();
             await ehReceiver.init();
             return ehReceiver;
         }
@@ -167,58 +89,75 @@ class EventHubClient {
         }
     }
     /**
-     * @private
-     * Helper method to make the management request
-     * @param {string} type - The type of entity requested for. Valid values are "eventhub", "partition"
-     * @param {string | number} [partitionId] - The partitionId. Required only when type is "partition".
+     * Provides the eventhub runtime information.
+     * @method getHubRuntimeInformation
+     * @returns {Promise<EventHubRuntimeInformation>}
      */
-    async _makeManagementRequest(type, partitionId) {
-        if (partitionId && typeof partitionId !== "string" && typeof partitionId !== "number") {
-            throw new Error("'partitionId' is a required parameter and must be of type: 'string' | 'number'.");
+    async getHubRuntimeInformation() {
+        try {
+            await this._open();
+            return await this.managementClient.getHubRuntimeInformation(this.connection);
         }
-        return new Promise(async (resolve, reject) => {
-            try {
-                const endpoint = Constants.management;
-                const replyTo = uuid();
-                const request = {
-                    body: Buffer.from(JSON.stringify([])),
-                    properties: {
-                        message_id: uuid(),
-                        reply_to: replyTo
-                    },
-                    application_properties: {
-                        operation: Constants.readOperation,
-                        name: this.config.entityPath,
-                        type: `${Constants.vendorString}:${type}`
-                    }
-                };
-                if (partitionId && type === Constants.partition) {
-                    request.application_properties.partition = partitionId;
+        catch (err) {
+            return Promise.reject(err);
+        }
+    }
+    /**
+     * Provides an array of partitionIds.
+     * @method getPartitionIds
+     * @returns {Promise<Array<string>>}
+     */
+    async getPartitionIds() {
+        let runtimeInfo = await this.getHubRuntimeInformation();
+        return runtimeInfo.partitionIds;
+    }
+    /**
+     * Provides information about the specified partition.
+     * @method getPartitionInformation
+     * @param {(string|number)} partitionId Partition ID for which partition information is required.
+     */
+    async getPartitionInformation(partitionId) {
+        try {
+            await this._open();
+            return await this.managementClient.getPartitionInformation(this.connection, partitionId);
+        }
+        catch (err) {
+            return Promise.reject(err);
+        }
+    }
+    /**
+     * Opens the AMQP connection to the Event Hub for this client, returning a promise
+     * that will be resolved when the connection is completed.
+     * @method open
+     *
+     * @param {boolean} [useSaslPlain] - True for using sasl plain mode for authentication, false otherwise.
+     * @returns {Promise<void>}
+     */
+    async _open(useSaslPlain) {
+        if (useSaslPlain && typeof useSaslPlain !== "boolean") {
+            throw new Error("'useSaslPlain' must be of type 'boolean'.");
+        }
+        if (!this.connection) {
+            const connectOptions = {
+                transport: Constants.TLS,
+                host: this.config.host,
+                hostname: this.config.host,
+                username: this.config.sharedAccessKeyName,
+                port: 5671,
+                reconnect_limit: 100,
+                properties: {
+                    product: "MSJSClient",
+                    version: Constants.packageJsonInfo.version || "0.1.0",
+                    platform: `(${os.arch()}-${os.type()}-${os.release()})`,
+                    framework: `Node/${process.version}`,
+                    "user-agent": this.userAgent
                 }
-                const rxopt = { source: { address: endpoint }, name: replyTo, target: { address: replyTo } };
-                await this.open();
-                const session = await rheaPromise.createSession(this.connection);
-                const [sender, receiver] = await Promise.all([
-                    rheaPromise.createSender(session, { target: { address: endpoint } }),
-                    rheaPromise.createReceiver(session, rxopt)
-                ]);
-                // TODO: Handle timeout incase SB/EH does not send a response.
-                receiver.on(Constants.message, ({ message, delivery }) => {
-                    const code = message.application_properties[Constants.statusCode];
-                    const desc = message.application_properties[Constants.statusDescription];
-                    if (code === 200) {
-                        return resolve(message.body);
-                    }
-                    else if (code === 404) {
-                        return reject(desc);
-                    }
-                });
-                sender.send(request);
+            };
+            if (useSaslPlain) {
+                connectOptions.password = this.config.sharedAccessKey;
             }
-            catch (err) {
-                reject(err);
-            }
-        });
+            this.connection = await rheaPromise.connect(connectOptions);
+        }
     }
     /**
      * Creates an EventHub Client from connection string.

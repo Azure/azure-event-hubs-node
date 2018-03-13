@@ -7,7 +7,8 @@ const path = process.env["ENTITY_PATH"] || "";
 async function main(): Promise<void> {
   const client = EventHubClient.createFromConnectionString(str, path);
   let info = await client.getHubRuntimeInformation();
-  console.log("info: ", info);
+  console.log("RuntimeInfo: ", info);
+  await client.close();
 }
 
 main().catch((err) => {

@@ -14,6 +14,7 @@ async function main() {
         console.log(">>> EventDataObject: ", eventData);
         console.log("### Actual message:", eventData.body ? eventData.body.toString() : null);
     });
+    await sender.close();
 }
 main().catch((err) => {
     console.log("error: ", err);
