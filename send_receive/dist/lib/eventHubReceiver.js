@@ -26,12 +26,14 @@ class EventHubReceiver extends events_1.EventEmitter {
      */
     constructor(client, partitionId, options) {
         super();
+        this.prefetchCount = 500;
         if (!options)
             options = {};
         this.client = client;
         this.partitionId = partitionId;
         this.consumerGroup = options.consumerGroup ? options.consumerGroup : Constants.defaultConsumerGroup;
         this.address = `${this.client.config.entityPath}/ConsumerGroups/${this.consumerGroup}/Partitions/${this.partitionId}`;
+        this.prefetchCount = options.prefetchCount !== undefined && options.prefetchCount !== null ? options.prefetchCount : 500;
         this.options = options;
         const onMessage = (context) => {
             const evData = eventData_1.EventData.fromAmqpMessage(context.message);
@@ -65,7 +67,8 @@ class EventHubReceiver extends events_1.EventEmitter {
                     autoaccept: false,
                     source: {
                         address: this.address
-                    }
+                    },
+                    prefetch: this.prefetchCount
                 };
                 if (this.options) {
                     // Set filter on the receiver if specified.

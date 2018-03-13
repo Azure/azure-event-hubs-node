@@ -3,12 +3,24 @@ import { EventHubReceiver, EventHubSender, ConnectionConfig } from ".";
 import { TokenProvider } from "./auth/token";
 import { EventHubPartitionRuntimeInformation, EventHubRuntimeInformation } from "./managementClient";
 export interface ReceiveOptions {
+    /**
+     * @property {object} [filter] The filters that can be applied on the receiver. Only one of th
+     */
     filter?: {
         startAfterTime?: Date | number;
         startAfterOffset?: string;
         customFilter?: string;
     };
+    /**
+     * @property {string} [consumerGroup] The consumer group to which the receiver wants to connect to.
+     * If not provided then it will be connected to "$default" consumer group.
+     */
     consumerGroup?: string;
+    /**
+     * @property {number} [prefetchCount] The upper limit of events this receiver will actively receive
+     * regardless of whether a receive operation is pending. Defaults to 500.
+     */
+    prefetchCount?: number;
 }
 export declare class EventHubClient {
     config: ConnectionConfig;

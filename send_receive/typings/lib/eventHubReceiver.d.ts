@@ -8,6 +8,7 @@ export declare class EventHubReceiver extends EventEmitter {
     consumerGroup: string;
     address: string;
     options?: ReceiveOptions;
+    prefetchCount?: number;
     private _receiver;
     private _session;
     /**

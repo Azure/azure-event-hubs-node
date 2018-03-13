@@ -16,6 +16,7 @@ export class EventHubReceiver extends EventEmitter {
   consumerGroup: string;
   address: string;
   options?: ReceiveOptions;
+  prefetchCount?: number = 500;
   private _receiver: any;
   private _session: any;
 
@@ -42,6 +43,7 @@ export class EventHubReceiver extends EventEmitter {
     this.partitionId = partitionId;
     this.consumerGroup = options.consumerGroup ? options.consumerGroup : Constants.defaultConsumerGroup;
     this.address = `${this.client.config.entityPath}/ConsumerGroups/${this.consumerGroup}/Partitions/${this.partitionId}`;
+    this.prefetchCount = options.prefetchCount !== undefined && options.prefetchCount !== null ? options.prefetchCount : 500;
     this.options = options;
 
     const onMessage = (context: any) => {
@@ -79,7 +81,8 @@ export class EventHubReceiver extends EventEmitter {
           autoaccept: false,
           source: {
             address: this.address
-          }
+          },
+          prefetch: this.prefetchCount
         };
         if (this.options) {
           // Set filter on the receiver if specified.
