@@ -1,6 +1,7 @@
 import { ApplicationTokenCredentials, DeviceTokenCredentials, UserTokenCredentials, MSITokenCredentials } from "ms-rest-azure";
 import { EventHubReceiver, EventHubSender, ConnectionConfig } from ".";
 import { TokenProvider } from "./auth/token";
+import { EventHubPartitionRuntimeInformation, EventHubRuntimeInformation } from "./managementClient";
 export interface ReceiveOptions {
     filter?: {
         startAfterTime?: Date | number;
@@ -10,63 +11,12 @@ export interface ReceiveOptions {
     consumerGroup?: string;
     enableReceiverRuntimeMetric?: boolean;
 }
-export interface EventHubRuntimeInformation {
-    /**
-     * @property {string} path - The name of the event hub.
-     */
-    path: string;
-    /**
-     * @property {Date} createdAt - The date and time the hub was created in UTC.
-     */
-    createdAt: Date;
-    /**
-     * @property {number} partitionCount - The number of partitions in the event hub.
-     */
-    partitionCount: number;
-    /**
-     * @property {string[]} partitionIds - The slice of string partition identifiers.
-     */
-    partitionIds: string[];
-    /**
-     * @property {string} type - The type of entity.
-     */
-    type: "com.microsoft:eventhub";
-}
-export interface EventHubPartitionRuntimeInformation {
-    /**
-     * @property {string} hubPath - The name of the eventhub.
-     */
-    hubPath: string;
-    /**
-     * @property {string} partitionId - Identifier of the partition within the eventhub.
-     */
-    partitionId: string;
-    /**
-     * @property {number} beginningSequenceNumber - The starting sequence number of the partition's message log.
-     */
-    beginningSequenceNumber: number;
-    /**
-     * @property {number} lastSequenceNumber - The last sequence number of the partition's message log.
-     */
-    lastSequenceNumber: number;
-    /**
-     * @property {number} lastEnqueuedOffset - The offset of the last enqueued message in the partition's message log.
-     */
-    lastEnqueuedOffset: number;
-    /**
-     * @property {Date} lastEnqueuedTimeUtc - The time of the last enqueued message in the partition's message log in UTC.
-     */
-    lastEnqueuedTimeUtc: Date;
-    /**
-     * @property {string} type - The type of entity.
-     */
-    type: "com.microsoft:partition";
-}
 export declare class EventHubClient {
     config: ConnectionConfig;
     tokenProvider: TokenProvider;
     connection: any;
     userAgent: string;
+    private managementClient;
     /**
      * Instantiate a client pointing to the Event Hub given by this configuration.
      *
@@ -76,39 +26,12 @@ export declare class EventHubClient {
      */
     constructor(config: ConnectionConfig, tokenProvider?: TokenProvider);
     /**
-     * Opens the AMQP connection to the Event Hub for this client, returning a promise
-     * that will be resolved when the connection is completed.
-     * @method open
-     *
-     * @param {boolean} [useSaslPlain] - True for using sasl plain mode for authentication, false otherwise.
-     * @returns {Promise<void>}
-     */
-    open(useSaslPlain?: boolean): Promise<void>;
-    /**
      * Closes the AMQP connection to the Event Hub for this client,
      * returning a promise that will be resolved when disconnection is completed.
      * @method close
-     * @returns {Promise}
+     * @returns {Promise<any>}
      */
     close(): Promise<any>;
-    /**
-     * Provides the eventhub runtime information.
-     * @method getHubRuntimeInformation
-     * @returns {Promise<EventHubRuntimeInformation>}
-     */
-    getHubRuntimeInformation(): Promise<EventHubRuntimeInformation>;
-    /**
-     * Provides an array of partitionIds.
-     * @method getPartitionIds
-     * @returns {Promise<Array<string>>}
-     */
-    getPartitionIds(): Promise<Array<string>>;
-    /**
-     * Provides information about the specified partition.
-     * @method getPartitionInformation
-     * @param {(string|number)} partitionId Partition ID for which partition information is required.
-     */
-    getPartitionInformation(partitionId: string | number): Promise<EventHubPartitionRuntimeInformation>;
     /**
      * Creates a sender to the given event hub, and optionally to a given partition.
      * @method createSender
@@ -132,12 +55,32 @@ export declare class EventHubClient {
      */
     createReceiver(partitionId: string | number, options?: ReceiveOptions): Promise<EventHubReceiver>;
     /**
-     * @private
-     * Helper method to make the management request
-     * @param {string} type - The type of entity requested for. Valid values are "eventhub", "partition"
-     * @param {string | number} [partitionId] - The partitionId. Required only when type is "partition".
+     * Provides the eventhub runtime information.
+     * @method getHubRuntimeInformation
+     * @returns {Promise<EventHubRuntimeInformation>}
      */
-    private _makeManagementRequest(type, partitionId?);
+    getHubRuntimeInformation(): Promise<EventHubRuntimeInformation>;
+    /**
+     * Provides an array of partitionIds.
+     * @method getPartitionIds
+     * @returns {Promise<Array<string>>}
+     */
+    getPartitionIds(): Promise<Array<string>>;
+    /**
+     * Provides information about the specified partition.
+     * @method getPartitionInformation
+     * @param {(string|number)} partitionId Partition ID for which partition information is required.
+     */
+    getPartitionInformation(partitionId: string | number): Promise<EventHubPartitionRuntimeInformation>;
+    /**
+     * Opens the AMQP connection to the Event Hub for this client, returning a promise
+     * that will be resolved when the connection is completed.
+     * @method open
+     *
+     * @param {boolean} [useSaslPlain] - True for using sasl plain mode for authentication, false otherwise.
+     * @returns {Promise<void>}
+     */
+    private _open(useSaslPlain?);
     /**
      * Creates an EventHub Client from connection string.
      * @method createFromConnectionString

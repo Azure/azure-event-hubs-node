@@ -78,7 +78,6 @@ export class EventHubReceiver extends EventEmitter {
    */
   async init(): Promise<void> {
     try {
-      await this.client.open();
       const audience = `${this.client.config.endpoint}${this.address}`;
       const tokenObject = await this.client.tokenProvider.getToken(audience);
       await cbs.negotiateClaim(audience, this.client.connection, tokenObject);
