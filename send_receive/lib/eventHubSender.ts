@@ -32,6 +32,26 @@ export class EventHubSender extends EventEmitter {
     if (this.partitionId !== null && this.partitionId !== undefined) {
       this.address += `/Partitions/${this.partitionId}`;
     }
+
+    const onError = (context: rheaPromise.Context) => {
+      this.emit(Constants.senderError, context.sender.error);
+    };
+
+    this.on("newListener", (event) => {
+      if (event === Constants.senderError) {
+        if (this._session && this._sender) {
+          this._sender.on(Constants.senderError, onError);
+        }
+      }
+    });
+
+    this.on("removeListener", (event) => {
+      if (event === Constants.senderError) {
+        if (this._session && this._sender) {
+          this._sender.on(Constants.senderError, onError);
+        }
+      }
+    });
   }
 
   /**

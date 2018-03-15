@@ -22,3 +22,8 @@ export declare const aadEventHubsAudience = "https://eventhubs.azure.net/";
 export declare const maxUserAgentLength = 128;
 export declare const packageJsonInfo: any;
 export declare const vendorString = "com.microsoft";
+export declare const attachEpoch: string;
+export declare const receiverError = "receiver_error";
+export declare const senderError = "sender_error";
+export declare const sessionError = "session_error";
+export declare const connectionError = "connection_error";

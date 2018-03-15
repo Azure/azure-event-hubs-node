@@ -33,6 +33,10 @@ export interface ReceiveOptions {
    * regardless of whether a receive operation is pending. Defaults to 500.
    */
   prefetchCount?: number;
+  /**
+   * @property {number} [epoch] The epoch value that this receiver is currently using for partition ownership.
+   */
+  epoch?: number;
 }
 
 export class EventHubClient {
@@ -100,7 +104,11 @@ export class EventHubClient {
    * @param {EventHubClient} client                            The EventHub client.
    * @param {(string | number)} partitionId                    Partition ID from which to receive.
    * @param {ReceiveOptions} [options]                         Options for how you'd like to connect.
-   * @param {string} options.consumerGroup                     Consumer group from which to receive.
+   * @param {string} [options.consumerGroup]                   Consumer group from which to receive.
+   * @param {number} [options.prefetchcount]                   The upper limit of events this receiver will
+   * actively receive regardless of whether a receive operation is pending.
+   * @param {number} [options.epoch]                           The epoch value that this receiver is currently
+   * using for partition ownership. A value of undefined means this receiver is not an epoch-based receiver.
    * @param {ReceiveOptions.filter} [options.filter]           Filter settings on the receiver. Only one of
    * startAfterTime, startAfterOffset, customFilter can be specified
    * @param {(Date|Number)} options.filter.startAfterTime      Only receive messages enqueued after the given time.
