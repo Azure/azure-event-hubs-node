@@ -5,6 +5,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const events_1 = require("events");
 const eventData_1 = require("./eventData");
 const Constants = require("./util/constants");
+const errors = require("./errors");
 const rheaPromise = require("./rhea-promise");
 const cbs = require("./cbs");
 const rhea = require("rhea");
@@ -16,7 +17,11 @@ class EventHubReceiver extends events_1.EventEmitter {
      * @param {EventHubClient} client                            The EventHub client.
      * @param {(string | number)} partitionId                    Partition ID from which to receive.
      * @param {ReceiveOptions} [options]                         Options for how you'd like to connect.
-     * @param {string} options.consumerGroup                     Consumer group from which to receive.
+     * @param {string} [options.consumerGroup]                   Consumer group from which to receive.
+     * @param {number} [options.prefetchcount]                   The upper limit of events this receiver will
+     * actively receive regardless of whether a receive operation is pending.
+     * @param {number} [options.epoch]                           The epoch value that this receiver is currently
+     * using for partition ownership. A value of undefined means this receiver is not an epoch-based receiver.
      * @param {ReceiveOptions.filter} [options.filter]           Filter settings on the receiver. Only one of
      * startAfterTime, startAfterOffset, customFilter can be specified
      * @param {(Date|Number)} options.filter.startAfterTime      Only receive messages enqueued after the given time.
@@ -34,10 +39,14 @@ class EventHubReceiver extends events_1.EventEmitter {
         this.consumerGroup = options.consumerGroup ? options.consumerGroup : Constants.defaultConsumerGroup;
         this.address = `${this.client.config.entityPath}/ConsumerGroups/${this.consumerGroup}/Partitions/${this.partitionId}`;
         this.prefetchCount = options.prefetchCount !== undefined && options.prefetchCount !== null ? options.prefetchCount : 500;
+        this.epoch = options.epoch;
         this.options = options;
         const onMessage = (context) => {
             const evData = eventData_1.EventData.fromAmqpMessage(context.message);
             this.emit(Constants.message, evData);
+        };
+        const onError = (context) => {
+            this.emit(Constants.receiverError, errors.translate(context.receiver.error));
         };
         this.on("newListener", (event) => {
             if (event === Constants.message) {
@@ -45,11 +54,21 @@ class EventHubReceiver extends events_1.EventEmitter {
                     this._receiver.on(Constants.message, onMessage);
                 }
             }
+            if (event === Constants.receiverError) {
+                if (this._session && this._receiver) {
+                    this._receiver.on(Constants.receiverError, onError);
+                }
+            }
         });
         this.on("removeListener", (event) => {
             if (event === Constants.message) {
-                if (!this._session && this._receiver) {
+                if (this._session && this._receiver) {
                     this._receiver.on(Constants.message, onMessage);
+                }
+            }
+            if (event === Constants.receiverError) {
+                if (this._session && this._receiver) {
+                    this._receiver.on(Constants.receiverError, onError);
                 }
             }
         });
@@ -68,8 +87,13 @@ class EventHubReceiver extends events_1.EventEmitter {
                     source: {
                         address: this.address
                     },
-                    prefetch: this.prefetchCount
+                    prefetch: this.prefetchCount,
                 };
+                if (this.epoch !== undefined && this.epoch !== null) {
+                    if (!rcvrOptions.properties)
+                        rcvrOptions.properties = {};
+                    rcvrOptions.properties[Constants.attachEpoch] = rhea.types.wrap_long(this.epoch);
+                }
                 if (this.options) {
                     // Set filter on the receiver if specified.
                     if (this.options.filter) {
@@ -107,6 +131,9 @@ class EventHubReceiver extends events_1.EventEmitter {
      */
     async close() {
         try {
+            // TODO: should I call _receiver.detach() or _receiver.close()?
+            // should I also call this._session.close() after closing the reciver
+            // or can I directly close the session which will take care of closing the receiver as well.
             await this._receiver.detach();
             this.removeAllListeners();
             this._receiver = undefined;
