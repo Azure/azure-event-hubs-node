@@ -23,6 +23,7 @@ export class EventHubSender extends EventEmitter {
   address: string;
   private _sender: any;
   private _session: any;
+  private _tokenRenewalTimer?: NodeJS.Timer;
 
   constructor(client: EventHubClient, partitionId?: string | number) {
     super();
@@ -62,6 +63,7 @@ export class EventHubSender extends EventEmitter {
     try {
       let audience = `${this.client.config.endpoint}${this.address}`;
       const tokenObject = await this.client.tokenProvider.getToken(audience);
+      console.log("EH Sender: calling negotiateClaim", this);
       await cbs.negotiateClaim(audience, this.client.connection, tokenObject);
       if (!this._session && !this._sender) {
         this._session = await rheaPromise.createSession(this.client.connection);
@@ -169,6 +171,7 @@ export class EventHubSender extends EventEmitter {
       this.removeAllListeners();
       this._sender = undefined;
       this._session = undefined;
+      clearTimeout(this._tokenRenewalTimer as NodeJS.Timer);
     } catch (err) {
       return Promise.reject(err);
     }
@@ -182,6 +185,6 @@ export class EventHubSender extends EventEmitter {
     const tokenValidTimeInSeconds = this.client.tokenProvider.tokenValidTimeInSeconds;
     const tokenRenewalMarginInSeconds = this.client.tokenProvider.tokenRenewalMarginInSeconds;
     const nextRenewalTimeout = (tokenValidTimeInSeconds - tokenRenewalMarginInSeconds) * 1000;
-    setTimeout(async () => await this.init(), nextRenewalTimeout);
+    this._tokenRenewalTimer = setTimeout(async () => await this.init(), nextRenewalTimeout);
   }
 }

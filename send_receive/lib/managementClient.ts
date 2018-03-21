@@ -4,6 +4,7 @@
 import * as uuid from "uuid/v4";
 import * as rheaPromise from "./rhea-promise";
 import * as Constants from "./util/constants";
+import { translate, ConditionStatusMapper } from "./errors";
 const Buffer = require("buffer/").Buffer;
 
 export interface EventHubRuntimeInformation {
@@ -169,10 +170,15 @@ export class ManagementClient {
         receiver.on(Constants.message, ({ message, delivery }: any) => {
           const code: number = message.application_properties[Constants.statusCode];
           const desc: string = message.application_properties[Constants.statusDescription];
-          if (code === 200) {
+          if (code === rheaPromise.AmqpResponseStatusCode.OK || code === rheaPromise.AmqpResponseStatusCode.Accepted) {
             return resolve(message.body);
-          } else if (code === 404) {
-            return reject(desc);
+          } else {
+            const condition = ConditionStatusMapper[code] || "amqp:internal-error";
+            let e: rheaPromise.AmqpError = {
+              condition: condition,
+              description: desc
+            };
+            return reject(translate(e));
           }
         });
 

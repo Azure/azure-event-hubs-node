@@ -10,17 +10,47 @@ import * as rheaPromise from "./rhea-promise";
 import * as cbs from "./cbs";
 import * as rhea from "rhea";
 
+/**
+ * Represents the approximate receiver runtime information for a logical partition of an Event Hub.
+ * @interface ReceiverRuntimeInfo
+ */
+export interface ReceiverRuntimeInfo {
+  /**
+   * @property {string} partitionId The parition identifier.
+   */
+  paritionId: string;
+  /**
+   * @property {number} lastSequenceNumber The logical sequence number of the event.
+   */
+  lastSequenceNumber?: number;
+  /**
+   * @property {Date} lastEnqueuedTimeUtc The enqueued time of the last event.
+   */
+  lastEnqueuedTimeUtc?: Date;
+  /**
+   * @property {string} lastEnqueuedOffset The offset of the last enqueued event.
+   */
+  lastEnqueuedOffset?: string;
+  /**
+   * @property {Date} retrievalTime The enqueued time of the last event.
+   */
+  retrievalTime?: Date;
+}
+
 export class EventHubReceiver extends EventEmitter {
-  client: EventHubClient;
-  name?: string;
-  partitionId: string | number;
-  consumerGroup: string;
   address: string;
+  client: EventHubClient;
+  consumerGroup: string;
+  partitionId: string;
+  runtimeInfo: ReceiverRuntimeInfo;
+  epoch?: number;
+  name?: string;
   options?: ReceiveOptions;
   prefetchCount?: number = 500;
-  epoch?: number;
+  receiverRuntimeMetricEnabled: boolean = false;
   private _receiver: any;
   private _session: any;
+  private _tokenRenewalTimer?: NodeJS.Timer;
 
 
   /**
@@ -28,11 +58,13 @@ export class EventHubReceiver extends EventEmitter {
    *
    * @constructor
    * @param {EventHubClient} client                            The EventHub client.
-   * @param {(string | number)} partitionId                    Partition ID from which to receive.
+   * @param {string} partitionId                    Partition ID from which to receive.
    * @param {ReceiveOptions} [options]                         Options for how you'd like to connect.
    * @param {string} [options.consumerGroup]                   Consumer group from which to receive.
    * @param {number} [options.prefetchcount]                   The upper limit of events this receiver will
    * actively receive regardless of whether a receive operation is pending.
+   * @param {boolean} [options.enableReceiverRuntimeMetric]    Provides the approximate receiver runtime information
+   * for a logical partition of an Event Hub if the value is true. Default false.
    * @param {number} [options.epoch]                           The epoch value that this receiver is currently
    * using for partition ownership. A value of undefined means this receiver is not an epoch-based receiver.
    * @param {ReceiveOptions.filter} [options.filter]           Filter settings on the receiver. Only one of
@@ -42,7 +74,7 @@ export class EventHubReceiver extends EventEmitter {
    * @param {string} options.filter.customFilter               If you want more fine-grained control of the filtering.
    *      See https://github.com/Azure/amqpnetlite/wiki/Azure%20Service%20Bus%20Event%20Hubs for details.
    */
-  constructor(client: EventHubClient, partitionId: string | number, options?: ReceiveOptions) {
+  constructor(client: EventHubClient, partitionId: string, options?: ReceiveOptions) {
     super();
     if (!options) options = {};
     this.client = client;
@@ -52,6 +84,10 @@ export class EventHubReceiver extends EventEmitter {
     this.prefetchCount = options.prefetchCount !== undefined && options.prefetchCount !== null ? options.prefetchCount : 500;
     this.epoch = options.epoch;
     this.options = options;
+    this.receiverRuntimeMetricEnabled = options.enableReceiverRuntimeMetric || false;
+    this.runtimeInfo = {
+      paritionId: partitionId
+    };
 
     const onMessage = (context: rheaPromise.Context) => {
       const evData = EventData.fromAmqpMessage(context.message);
@@ -97,6 +133,7 @@ export class EventHubReceiver extends EventEmitter {
     try {
       const audience = `${this.client.config.endpoint}${this.address}`;
       const tokenObject = await this.client.tokenProvider.getToken(audience);
+      console.log("EH Receiver: calling negotiateClaim", this);
       await cbs.negotiateClaim(audience, this.client.connection, tokenObject);
       if (!this._session && !this._receiver) {
         let rcvrOptions: rheaPromise.ReceiverOptions = {
@@ -109,6 +146,9 @@ export class EventHubReceiver extends EventEmitter {
         if (this.epoch !== undefined && this.epoch !== null) {
           if (!rcvrOptions.properties) rcvrOptions.properties = {};
           rcvrOptions.properties[Constants.attachEpoch] = rhea.types.wrap_long(this.epoch);
+        }
+        if (this.receiverRuntimeMetricEnabled) {
+          rcvrOptions.desired_capabilities = Constants.enableReceiverRuntimeMetricName;
         }
         if (this.options) {
           // Set filter on the receiver if specified.
@@ -134,8 +174,69 @@ export class EventHubReceiver extends EventEmitter {
         this._session = await rheaPromise.createSession(this.client.connection);
         this._receiver = await rheaPromise.createReceiver(this._session, rcvrOptions);
         this.name = this._receiver.name;
+        console.log("$$$$$ Negotatited claim for receiver %s with with partition %s", this.name, this.partitionId);
       }
       this._ensureTokenRenewal();
+    } catch (err) {
+      return Promise.reject(err);
+    }
+  }
+
+  /**
+   * Receive a batch of EventDatas from an EventHub partition for a given count and a given max wait time in seconds, whichever
+   * happens first.
+   *
+   * @param {number} maxMessageCount                         The maximum message count. Must be a value greater than 0.
+   * @param {number} [maxWaitTimeInSeconds]          The maximum wait time in seconds for which the Receiver should wait
+   * to receiver the said amount of messages. If not provided, it defaults to 60 seconds.
+   * @returns {Promise<EventData[]>} A promise that resolves with an array of EventData objects.
+   */
+  async receive(maxMessageCount: number, maxWaitTimeInSeconds?: number): Promise<EventData[]> {
+    if (!maxMessageCount || (maxMessageCount && typeof maxMessageCount !== 'number')) {
+      throw new Error("'maxMessageCount' is a required parameter of type number with a value greater than 0.");
+    }
+
+    if (maxWaitTimeInSeconds === null || maxWaitTimeInSeconds === undefined) {
+      maxWaitTimeInSeconds = Constants.defaultOperationTimeoutInSeconds;
+    }
+
+    try {
+      let eventDatas: EventData[] = [];
+      let count = 0;
+      let timeOver = false;
+      return new Promise<EventData[]>((resolve, reject) => {
+        const actionAfterWaitTimeout = () => {
+          timeOver = true;
+          let data = eventDatas.length ? eventDatas[eventDatas.length - 1] : undefined;
+          if (this.receiverRuntimeMetricEnabled && data) {
+            this.runtimeInfo.lastSequenceNumber = data.lastSequenceNumber;
+            this.runtimeInfo.lastEnqueuedTimeUtc = data.lastEnqueuedTime;
+            this.runtimeInfo.lastEnqueuedOffset = data.lastEnqueuedOffset;
+            this.runtimeInfo.retrievalTime = data.retrievalTime;
+          }
+          resolve(eventDatas);
+        };
+        let waitTimer = setTimeout(actionAfterWaitTimeout, (maxWaitTimeInSeconds as number) * 1000);
+        // Action to be performed on the "message" event.
+        const onReceiveMessage = (data: EventData) => {
+          if (!timeOver && count <= maxMessageCount) {
+            count++;
+            eventDatas.push(data);
+          }
+          if (count === maxMessageCount) {
+            this.removeListener(Constants.message, onReceiveMessage);
+            clearTimeout(waitTimer);
+            if (this.receiverRuntimeMetricEnabled) {
+              this.runtimeInfo.lastSequenceNumber = data.lastSequenceNumber;
+              this.runtimeInfo.lastEnqueuedTimeUtc = data.lastEnqueuedTime;
+              this.runtimeInfo.lastEnqueuedOffset = data.lastEnqueuedOffset;
+              this.runtimeInfo.retrievalTime = data.retrievalTime;
+            }
+            resolve(eventDatas);
+          }
+        };
+        this.on(Constants.message, onReceiveMessage);
+      });
     } catch (err) {
       return Promise.reject(err);
     }
@@ -153,6 +254,7 @@ export class EventHubReceiver extends EventEmitter {
       this.removeAllListeners();
       this._receiver = undefined;
       this._session = undefined;
+      clearTimeout(this._tokenRenewalTimer as NodeJS.Timer);
     } catch (err) {
       return Promise.reject(err);
     }
@@ -165,6 +267,6 @@ export class EventHubReceiver extends EventEmitter {
     const tokenValidTimeInSeconds = this.client.tokenProvider.tokenValidTimeInSeconds;
     const tokenRenewalMarginInSeconds = this.client.tokenProvider.tokenRenewalMarginInSeconds;
     const nextRenewalTimeout = (tokenValidTimeInSeconds - tokenRenewalMarginInSeconds) * 1000;
-    setTimeout(async () => await this.init(), nextRenewalTimeout);
+    this._tokenRenewalTimer = setTimeout(async () => await this.init(), nextRenewalTimeout);
   }
 }

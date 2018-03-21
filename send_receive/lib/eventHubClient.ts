@@ -37,6 +37,10 @@ export interface ReceiveOptions {
    * @property {number} [epoch] The epoch value that this receiver is currently using for partition ownership.
    */
   epoch?: number;
+  /**
+   * @property {boolean} [enableReceiverRuntimeMetric] A value indicating whether the runtime metric of a receiver is enabled.
+   */
+  enableReceiverRuntimeMetric?: boolean;
 }
 
 export class EventHubClient {
@@ -102,11 +106,13 @@ export class EventHubClient {
    *
    * @constructor
    * @param {EventHubClient} client                            The EventHub client.
-   * @param {(string | number)} partitionId                    Partition ID from which to receive.
+   * @param {string} partitionId                    Partition ID from which to receive.
    * @param {ReceiveOptions} [options]                         Options for how you'd like to connect.
    * @param {string} [options.consumerGroup]                   Consumer group from which to receive.
    * @param {number} [options.prefetchcount]                   The upper limit of events this receiver will
    * actively receive regardless of whether a receive operation is pending.
+   * @param {boolean} [options.enableReceiverRuntimeMetric]    Provides the approximate receiver runtime information
+   * for a logical partition of an Event Hub if the value is true. Default false.
    * @param {number} [options.epoch]                           The epoch value that this receiver is currently
    * using for partition ownership. A value of undefined means this receiver is not an epoch-based receiver.
    * @param {ReceiveOptions.filter} [options.filter]           Filter settings on the receiver. Only one of
@@ -116,7 +122,7 @@ export class EventHubClient {
    * @param {string} options.filter.customFilter               If you want more fine-grained control of the filtering.
    *      See https://github.com/Azure/amqpnetlite/wiki/Azure%20Service%20Bus%20Event%20Hubs for details.
    */
-  async createReceiver(partitionId: string | number, options?: ReceiveOptions): Promise<EventHubReceiver> {
+  async createReceiver(partitionId: string, options?: ReceiveOptions): Promise<EventHubReceiver> {
     if (!partitionId || (partitionId && typeof partitionId !== "string" && typeof partitionId !== "number")) {
       throw new Error("'partitionId' is a required parameter and must be of type: 'string' | 'number'.");
     }

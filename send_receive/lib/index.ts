@@ -8,6 +8,8 @@ export { EventHubSender } from "./eventHubSender";
 export { EventHubClient, ReceiveOptions } from "./eventHubClient";
 export { EventHubPartitionRuntimeInformation, EventHubRuntimeInformation } from "./managementClient";
 export { TokenType, TokenProvider, TokenInfo } from "./auth/token";
+import EventProcessorHost from "./eph/eventProcessorHost";
+export { EventProcessorHost };
 
 export { aadEventHubsAudience } from "./util/constants";
 export import EventHubManagementClient = require("azure-arm-eventhub");

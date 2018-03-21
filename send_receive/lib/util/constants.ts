@@ -23,8 +23,10 @@ export const maxUserAgentLength = 128;
 export const packageJsonInfo = require("../../../package.json");
 export const vendorString = "com.microsoft";
 export const attachEpoch = `${vendorString}:epoch`;
+export const enableReceiverRuntimeMetricName = `${vendorString}:enable-receiver-runtime-metric`;
 export const receiverError = "receiver_error";
 export const senderError = "sender_error";
 export const sessionError = "session_error";
 export const connectionError = "connection_error";
+export const defaultOperationTimeoutInSeconds = 60;
 

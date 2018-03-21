@@ -5,7 +5,8 @@ import { TokenInfo } from "./auth/token";
 import * as rheaPromise from "./rhea-promise";
 import * as uuid from "uuid/v4";
 import * as Constants from "./util/constants";
-
+import { ConditionStatusMapper, translate } from "./errors";
+let count = 0;
 /**
  * CBS session.
  */
@@ -73,14 +74,25 @@ export async function negotiateClaim(audience: string, connection: any, tokenObj
       receiver.on(Constants.message, (result: any) => {
         const code: number = result.message.application_properties[Constants.statusCode];
         const desc: string = result.message.application_properties[Constants.statusDescription];
-        const errorCondition: string | undefined = result.message.application_properties[Constants.errorCondition];
-        if (code > 200 && code < 300) {
+        let errorCondition: string | undefined = result.message.application_properties[Constants.errorCondition];
+        console.log(">>>>>> %d cbs request body", ++count, request);
+        console.log("###### %d cbs response", count, result.message);
+        if (code > 199 && code < 300) {
           resolve();
         } else {
-          let e: any = new Error(desc);
-          e.code = code;
-          if (errorCondition) e.errorCondition = errorCondition;
-          reject(e);
+          // Try to map the status code to error condition
+          if (!errorCondition) {
+            errorCondition = ConditionStatusMapper[code];
+          }
+          // If we still cannot find a suitable error condition then we default to "amqp:internal-error"
+          if (!errorCondition) {
+            errorCondition = "amqp:internal-error";
+          }
+          let e: rheaPromise.AmqpError = {
+            condition: errorCondition,
+            description: desc
+          };
+          reject(translate(e));
         }
       });
       sender.send(request);

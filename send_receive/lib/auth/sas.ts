@@ -74,7 +74,7 @@ export class SasTokenProvider implements TokenProvider {
     const sig = encodeURIComponent(crypto.createHmac('sha256', this.key).update(stringToSign, 'utf8').digest('base64'));
     return {
       token: `SharedAccessSignature sr=${audience}&sig=${sig}&se=${expiry}&skn=${keyName}`,
-      tokenType: TokenType.cbsTokenTypeSas,
+      tokenType: TokenType.CbsTokenTypeSas,
       expiry: expiry
     };
   }
