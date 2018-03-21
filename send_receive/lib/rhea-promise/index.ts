@@ -323,7 +323,7 @@ export interface Context {
   sender?: any;
 }
 
-export interface AmqpError extends Error {
+export interface AmqpError {
   condition?: string;
   description?: string;
   info?: any;

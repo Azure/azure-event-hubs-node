@@ -7,9 +7,12 @@
   "main": "./lib",
   "dependencies": {
     "@types/node": "^8.0.37",
+    "@types/debug": "^0.0.30",
+    "debug": "^3.1.0",
     "azure-arm-eventhub": "^1.2.0-preview",
     "buffer": "^5.1.0",
-    "rhea": "amqp/rhea#master"
+    "rhea": "amqp/rhea#master",
+    "azure-storage": "^2.8.1"
   },
   "devDependencies": {
     "typescript": "^2.7.2",
