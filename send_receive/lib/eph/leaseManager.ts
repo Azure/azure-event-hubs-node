@@ -67,15 +67,15 @@ export default class LeaseManager extends EventEmitter {
           this._maintain(lease);
           this.emit(LeaseManager.acquired, lease);
         } catch (error) {
-          const msg = `Failed to acquire lease for '${lease.fullUri}': ${error}. Will retry.`;
+          const msg = `Failed to acquire lease for "${lease.fullUri}": "${error}". Will retry.`;
           debug(msg);
-          return Promise.reject(msg);
         }
       };
       this.leases[lease.fullUri].interval = setInterval(acquireLease, this.leaseDuration * 1000);
       await acquireLease(); // Best-case scenario, it acquires immediately and clears the interval.
     } catch (err) {
-      return Promise.reject(err);
+      const msg = `An error occured while acquiring the lease for "${lease.fullUri}". `;
+      debug(msg, err);
     }
   }
 
@@ -85,7 +85,7 @@ export default class LeaseManager extends EventEmitter {
       this.leases[lease.fullUri].interval = setInterval(async () => {
         try {
           await lease.renew({ leaseDuration: this.leaseDuration });
-          debug(`Renewed '${lease.fullUri}'`);
+          debug(`Renewed "${lease.fullUri}"`);
           this.leases[lease.fullUri].expires = Date.now() + (this.leaseDuration * 1000);
         } catch (error) {
           if ((this.leases[lease.fullUri].expires as number) < Date.now() + renewPeriod) {
@@ -95,16 +95,17 @@ export default class LeaseManager extends EventEmitter {
             this.emit(LeaseManager.lost, lease);
             lease.setIsHeld(false);
             setTimeout(() => {
-              debug(`Lease '${lease.fullUri}' lost. Attempting to re-acquire.`);
+              debug(`Lease "${lease.fullUri}" lost. Attempting to re-acquire.`);
               this._acquire(lease);
             }, renewPeriod * 2);
           } else {
-            debug(`Failed to renew lease for '${lease.fullUri}': '${error}'. Will retry.`);
+            debug(`Failed to renew lease for "${lease.fullUri}": "${error}". Will retry.`);
           }
         }
       }, renewPeriod);
     } catch (err) {
-      return Promise.reject(err);
+      const msg = `An error occured while renewing the lease for "${lease.fullUri}". `;
+      debug(msg, err);
     }
   }
 }
