@@ -82,19 +82,19 @@ export default class EventProcessorHost extends EventEmitter {
         this._detachReceiver(lease.partitionId, "Lease released");
       });
       const ids = await this._eventHubClient.getPartitionIds();
-      ids.forEach((id) => {
+      for (let i = 0; i < ids.length; i++) {
+        let id = ids[i];
         if (partitionFilter && !partitionFilter(id)) {
           debug("Skipping partition " + id);
-          return;
+          continue;
         }
         debug("Managing lease for partition " + id);
-
         const blobPath = this._consumerGroup + "/" + id;
         const lease = new Lease(this._storageConnectionString, this._hostName, blobPath);
         lease.partitionId = id;
         this._contextByPartition![id] = new PartitionContext(id, this._hostName, lease);
         this._leaseManager!.manageLease(lease);
-      });
+      }
     } catch (err) {
       return Promise.reject(err);
     }
