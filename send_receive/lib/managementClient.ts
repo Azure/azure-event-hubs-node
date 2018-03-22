@@ -4,8 +4,11 @@
 import * as uuid from "uuid/v4";
 import * as rheaPromise from "./rhea-promise";
 import * as Constants from "./util/constants";
+import { RequestResponseLink, createRequestResponseLink } from "./rpc";
 import { translate, ConditionStatusMapper } from "./errors";
+import * as debugModule from "debug";
 const Buffer = require("buffer/").Buffer;
+const debug = debugModule("azure:event-hubs:management");
 
 export interface EventHubRuntimeInformation {
   /**
@@ -72,6 +75,8 @@ export class ManagementClient {
    * Instantiates the management client.
    * @param entityPath - The name/path of the entity (hub name) for which the management request needs to be made.
    */
+  private _mgmgtReqResLink?: RequestResponseLink;
+
   constructor(public entityPath: string) {
     this.entityPath = entityPath;
   }
@@ -91,6 +96,7 @@ export class ManagementClient {
       partitionIds: info.partition_ids,
       type: info.type
     };
+    debug(`The hub runtime info is.`, runtimeInfo);
     return runtimeInfo;
   }
 
@@ -125,6 +131,7 @@ export class ManagementClient {
       partitionId: info.partition,
       type: info.type
     };
+    debug(`The partition info is: ${partitionInfo}.`);
     return partitionInfo;
   }
 
@@ -158,18 +165,20 @@ export class ManagementClient {
         if (partitionId && type === Constants.partition) {
           request.application_properties.partition = partitionId;
         }
-
-        const rxopt: rheaPromise.ReceiverOptions = { source: { address: endpoint }, name: replyTo, target: { address: replyTo } };
-        const session = await rheaPromise.createSession(connection);
-        const [sender, receiver] = await Promise.all([
-          rheaPromise.createSender(session, { target: { address: endpoint } }),
-          rheaPromise.createReceiver(session, rxopt)
-        ]);
-
+        if (!this._mgmgtReqResLink) {
+          const rxopt: rheaPromise.ReceiverOptions = { source: { address: endpoint }, name: replyTo, target: { address: replyTo } };
+          debug("Creating a session for $management endpoint");
+          this._mgmgtReqResLink = await createRequestResponseLink(connection, { target: { address: endpoint } }, rxopt);
+          debug(`Created sender "${this._mgmgtReqResLink.sender.name}" and receiver "${this._mgmgtReqResLink.receiver.name}" links for $management endpoint.`);
+        }
         // TODO: Handle timeout incase SB/EH does not send a response.
-        receiver.on(Constants.message, ({ message, delivery }: any) => {
+        const messageCallback = ({ message, delivery }: any) => {
+          // remove the event listener as this will be registered next time when someone makes a request.
+          this._mgmgtReqResLink!.receiver.removeListener(Constants.message, messageCallback);
           const code: number = message.application_properties[Constants.statusCode];
           const desc: string = message.application_properties[Constants.statusDescription];
+          debug(`$management request: \n`, request);
+          debug(`$management response: \n`, message);
           if (code === rheaPromise.AmqpResponseStatusCode.OK || code === rheaPromise.AmqpResponseStatusCode.Accepted) {
             return resolve(message.body);
           } else {
@@ -180,10 +189,11 @@ export class ManagementClient {
             };
             return reject(translate(e));
           }
-        });
-
-        sender.send(request);
+        };
+        this._mgmgtReqResLink.receiver.on(Constants.message, messageCallback);
+        this._mgmgtReqResLink.sender.send(request);
       } catch (err) {
+        debug(`An error occurred while making the request to $management endpoint: \n`, err);
         reject(err);
       }
     });

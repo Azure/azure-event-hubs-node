@@ -11,7 +11,8 @@ import { AadTokenProvider } from "./auth/aad";
 import * as os from "os";
 import * as process from "process";
 import { ManagementClient, EventHubPartitionRuntimeInformation, EventHubRuntimeInformation } from "./managementClient";
-
+import * as debugModule from "debug";
+const debug = debugModule("azure:event-hubs:client");
 
 
 export interface ReceiveOptions {
@@ -77,6 +78,7 @@ export class EventHubClient {
   async close(): Promise<any> {
     if (this.connection) {
       await this.connection.close();
+      debug("Closed the amqp connection on the client.");
     }
   }
 
@@ -206,7 +208,9 @@ export class EventHubClient {
       if (useSaslPlain) {
         connectOptions.password = this.config.sharedAccessKey;
       }
+      debug(`Dialling the amqp connection with options.`, connectOptions);
       this.connection = await rheaPromise.connect(connectOptions);
+      debug(`Successfully established the amqp connection.`);
     }
   }
 

@@ -2,23 +2,19 @@
 // Licensed under the MIT License. See License.txt in the project root for license information.
 
 import { TokenInfo } from "./auth/token";
+import { RequestResponseLink, createRequestResponseLink } from "./rpc";
 import * as rheaPromise from "./rhea-promise";
 import * as uuid from "uuid/v4";
 import * as Constants from "./util/constants";
+import * as debugModule from "debug";
 import { ConditionStatusMapper, translate } from "./errors";
-let count = 0;
+
+const debug = debugModule("azure:event-hubs:cbs");
+
 /**
- * CBS session.
+ * CBS sender, receiver on the same session.
  */
-let session: any;
-/**
- * CBS sender link in the session.
- */
-let sender: any;
-/**
- * CBS receiver link in the session.
- */
-let receiver: any;
+let cbsSenderReceiverLink: RequestResponseLink;
 /**
  * CBS endpoint - "$cbs"
  */
@@ -33,29 +29,20 @@ const replyTo = Constants.cbsReplyTo + "-" + uuid();
  * @param {any} connection The AMQP connection object on which the CBS session needs to be initialized.
  */
 async function init(connection: any): Promise<void> {
-  if (!connection) {
-    throw new Error(`Please provide a connection to initiate cbs.`);
-  }
-  if (!session && !sender && !receiver) {
-    session = await rheaPromise.createSession(connection);
+  if (!cbsSenderReceiverLink) {
     let rxOpt: rheaPromise.ReceiverOptions = {
       source: {
         address: endpoint
       },
-      name: replyTo,
-      target: {
-        address: replyTo
-      }
+      name: replyTo
     };
-    [sender, receiver] = await Promise.all([
-      rheaPromise.createSender(session, { target: { address: endpoint } }),
-      rheaPromise.createReceiver(session, rxOpt)
-    ]);
+    cbsSenderReceiverLink = await createRequestResponseLink(connection, { target: { address: endpoint } }, rxOpt);
   }
+  debug(`Successfully created the cbs sender "${cbsSenderReceiverLink.sender.name}" and receiver "${cbsSenderReceiverLink.receiver.name}" links over cbs session.`);
 }
 
-export async function negotiateClaim(audience: string, connection: any, tokenObject: TokenInfo): Promise<any> {
-  return new Promise(async function (resolve: any, reject: any): Promise<any> {
+export function negotiateClaim(audience: string, connection: any, tokenObject: TokenInfo): Promise<any> {
+  return new Promise(async (resolve: any, reject: any): Promise<void> => {
     try {
       await init(connection);
       const request = {
@@ -71,12 +58,14 @@ export async function negotiateClaim(audience: string, connection: any, tokenObj
           type: tokenObject.tokenType
         }
       };
-      receiver.on(Constants.message, (result: any) => {
+      const messageCallback = (result: any) => {
+        // remove the event listener as this will be registered next time when someone makes a request.
+        cbsSenderReceiverLink.receiver.removeListener(Constants.message, messageCallback);
         const code: number = result.message.application_properties[Constants.statusCode];
         const desc: string = result.message.application_properties[Constants.statusDescription];
         let errorCondition: string | undefined = result.message.application_properties[Constants.errorCondition];
-        console.log(">>>>>> %d cbs request body", ++count, request);
-        console.log("###### %d cbs response", count, result.message);
+        debug(`$cbs request: \n`, request);
+        debug(`$cbs response: \n`, result.message);
         if (code > 199 && code < 300) {
           resolve();
         } else {
@@ -94,9 +83,11 @@ export async function negotiateClaim(audience: string, connection: any, tokenObj
           };
           reject(translate(e));
         }
-      });
-      sender.send(request);
+      };
+      cbsSenderReceiverLink.receiver.on(Constants.message, messageCallback);
+      cbsSenderReceiverLink.sender.send(request);
     } catch (err) {
+      debug(`An error occurred while negotating the cbs claim: \n`, err);
       reject(err);
     }
   });

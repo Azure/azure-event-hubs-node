@@ -8,6 +8,8 @@ import * as cbs from "./cbs";
 import * as rheaPromise from "./rhea-promise";
 import { AmqpMessage } from "./eventData";
 import * as rhea from "rhea";
+import * as debugModule from "debug";
+const debug = debugModule("azure:event-hubs:sender");
 
 /**
  * Instantiates a new sender from the AMQP `Sender`. Used by `EventHubClient`.
@@ -63,7 +65,7 @@ export class EventHubSender extends EventEmitter {
     try {
       let audience = `${this.client.config.endpoint}${this.address}`;
       const tokenObject = await this.client.tokenProvider.getToken(audience);
-      console.log("EH Sender: calling negotiateClaim", this);
+      debug(`EH Sender: calling negotiateClaim for audience "${audience}"`);
       await cbs.negotiateClaim(audience, this.client.connection, tokenObject);
       if (!this._session && !this._sender) {
         this._session = await rheaPromise.createSession(this.client.connection);
@@ -74,6 +76,7 @@ export class EventHubSender extends EventEmitter {
         };
         this._sender = await rheaPromise.createSender(this._session, options);
         this.name = this._sender.name;
+        debug(`Negotatited claim for sender "${this.name}" with with partition "${this.partitionId}"`);
       }
 
       this._ensureTokenRenewal();
@@ -108,7 +111,7 @@ export class EventHubSender extends EventEmitter {
       if (!message.message_annotations) message.message_annotations = {};
       message.message_annotations[Constants.partitionKey] = partitionKey;
     }
-
+    debug(`Sender "${this.name}", sending message: \n`, message);
     return this._sender.send(message);
   }
 
@@ -130,7 +133,7 @@ export class EventHubSender extends EventEmitter {
     if (!this._session && !this._sender) {
       throw new Error("amqp sender is not present. Hence cannot send the message.");
     }
-
+    debug(`Sender "${this.name}", trying to send EventData[].`, datas);
     let messages: AmqpMessage[] = [];
     // Convert EventData to AmqpMessage.
     for (let i = 0; i < datas.length; i++) {
@@ -157,7 +160,9 @@ export class EventHubSender extends EventEmitter {
       batchMessage.properties = messages[0].properties;
     }
     // Finally encode the envelope (batch message).
-    return this._sender.send(rhea.message.encode(batchMessage), undefined, 0x80013700);
+    const encodedBatchMessage = rhea.message.encode(batchMessage);
+    debug(`Sender "${this.name}", sending encoded batch message.`, encodedBatchMessage);
+    return this._sender.send(encodedBatchMessage, undefined, 0x80013700);
   }
 
   /**
@@ -172,6 +177,7 @@ export class EventHubSender extends EventEmitter {
       this._sender = undefined;
       this._session = undefined;
       clearTimeout(this._tokenRenewalTimer as NodeJS.Timer);
+      debug(`Sender "${this.name}" closed.`);
     } catch (err) {
       return Promise.reject(err);
     }
@@ -186,5 +192,7 @@ export class EventHubSender extends EventEmitter {
     const tokenRenewalMarginInSeconds = this.client.tokenProvider.tokenRenewalMarginInSeconds;
     const nextRenewalTimeout = (tokenValidTimeInSeconds - tokenRenewalMarginInSeconds) * 1000;
     this._tokenRenewalTimer = setTimeout(async () => await this.init(), nextRenewalTimeout);
+    debug(`Sender "${this.name}", has next token renewal in ${nextRenewalTimeout / 1000} seconds ` +
+      `@(${new Date(Date.now() + nextRenewalTimeout).toString()}).`);
   }
 }
