@@ -1,4 +1,4 @@
-import { EventHubClient, EventProcessorHost } from "../lib";
+import { EventProcessorHost, EventHubClient } from "../lib";
 import * as uuid from "uuid/v4";
 import PartitionContext from "../lib/eph/partitionContext";
 import { AmqpMessage } from "../lib/eventData";
@@ -15,7 +15,7 @@ let ehc = EventHubClient.createFromConnectionString(str, path);
 async function main(): Promise<void> {
   try {
     const ids = await ehc.getPartitionIds();
-    const sender = await ehc.createSender();
+    //const sender = await ehc.createSender();
     ids.forEach((id) => {
       partitions[id] = false;
     });
@@ -42,7 +42,7 @@ async function main(): Promise<void> {
         if (!partitions[p]) allSet = false;
       }
       if (allSet) {
-        sender.send({ body: { id: msgId } });
+        //sender.send({ body: { id: msgId } });
       }
     });
     await host.start();
