@@ -15,6 +15,7 @@ export declare class EventHubSender extends EventEmitter {
     address: string;
     private _sender;
     private _session;
+    private _tokenRenewalTimer?;
     constructor(client: EventHubClient, partitionId?: string | number);
     /**
      * Negotiates the cbs claim and initializes the sender session on the connection.

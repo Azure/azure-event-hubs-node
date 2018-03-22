@@ -2,21 +2,17 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License. See License.txt in the project root for license information.
 Object.defineProperty(exports, "__esModule", { value: true });
-const rheaPromise = require("./rhea-promise");
+const rpc_1 = require("./rpc");
 const uuid = require("uuid/v4");
 const Constants = require("./util/constants");
+const debugModule = require("debug");
+const errors_1 = require("./errors");
+const utils_1 = require("./util/utils");
+const debug = debugModule("azure:event-hubs:cbs");
 /**
- * CBS session.
+ * CBS sender, receiver on the same session.
  */
-let session;
-/**
- * CBS sender link in the session.
- */
-let sender;
-/**
- * CBS receiver link in the session.
- */
-let receiver;
+let cbsSenderReceiverLink;
 /**
  * CBS endpoint - "$cbs"
  */
@@ -30,30 +26,21 @@ const replyTo = Constants.cbsReplyTo + "-" + uuid();
  * @param {any} connection The AMQP connection object on which the CBS session needs to be initialized.
  */
 async function init(connection) {
-    if (!connection) {
-        throw new Error(`Please provide a connection to initiate cbs.`);
-    }
-    if (!session && !sender && !receiver) {
-        session = await rheaPromise.createSession(connection);
+    if (!cbsSenderReceiverLink) {
         let rxOpt = {
             source: {
                 address: endpoint
             },
-            name: replyTo,
-            target: {
-                address: replyTo
-            }
+            name: replyTo
         };
-        [sender, receiver] = await Promise.all([
-            rheaPromise.createSender(session, { target: { address: endpoint } }),
-            rheaPromise.createReceiver(session, rxOpt)
-        ]);
+        cbsSenderReceiverLink = await rpc_1.createRequestResponseLink(connection, { target: { address: endpoint } }, rxOpt);
+        debug(`[${connection.options.id}] Successfully created the cbs sender "${cbsSenderReceiverLink.sender.name}" and receiver "${cbsSenderReceiverLink.receiver.name}" links over cbs session.`);
     }
 }
-async function negotiateClaim(audience, connection, tokenObject) {
-    return new Promise(async function (resolve, reject) {
+function negotiateClaim(audience, connection, tokenObject) {
+    return new Promise(async (resolve, reject) => {
         try {
-            await init(connection);
+            await utils_1.defaultLock.acquire(Constants.negotiateCbsKey, () => { return init(connection); });
             const request = {
                 body: tokenObject.token,
                 properties: {
@@ -67,24 +54,38 @@ async function negotiateClaim(audience, connection, tokenObject) {
                     type: tokenObject.tokenType
                 }
             };
-            receiver.on(Constants.message, (result) => {
+            const messageCallback = (result) => {
+                // remove the event listener as this will be registered next time when someone makes a request.
+                cbsSenderReceiverLink.receiver.removeListener(Constants.message, messageCallback);
                 const code = result.message.application_properties[Constants.statusCode];
                 const desc = result.message.application_properties[Constants.statusDescription];
-                const errorCondition = result.message.application_properties[Constants.errorCondition];
-                if (code > 200 && code < 300) {
+                let errorCondition = result.message.application_properties[Constants.errorCondition];
+                debug(`[${connection.options.id}] $cbs request: \n`, request);
+                debug(`[${connection.options.id}] $cbs response: \n`, result.message);
+                if (code > 199 && code < 300) {
                     resolve();
                 }
                 else {
-                    let e = new Error(desc);
-                    e.code = code;
-                    if (errorCondition)
-                        e.errorCondition = errorCondition;
-                    reject(e);
+                    // Try to map the status code to error condition
+                    if (!errorCondition) {
+                        errorCondition = errors_1.ConditionStatusMapper[code];
+                    }
+                    // If we still cannot find a suitable error condition then we default to "amqp:internal-error"
+                    if (!errorCondition) {
+                        errorCondition = "amqp:internal-error";
+                    }
+                    let e = {
+                        condition: errorCondition,
+                        description: desc
+                    };
+                    reject(errors_1.translate(e));
                 }
-            });
-            sender.send(request);
+            };
+            cbsSenderReceiverLink.receiver.on(Constants.message, messageCallback);
+            cbsSenderReceiverLink.sender.send(request);
         }
         catch (err) {
+            debug(`[${connection.options.id}] An error occurred while negotating the cbs claim: \n`, err);
             reject(err);
         }
     });

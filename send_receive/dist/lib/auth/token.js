@@ -12,10 +12,10 @@ var TokenType;
     /**
      * The "jwt" token type. Used with AADTokenProvider.
      */
-    TokenType["cbsTokenTypeJwt"] = "jwt";
+    TokenType["CbsTokenTypeJwt"] = "jwt";
     /**
      * The sas token type. Used with SasTokenProvider.
      */
-    TokenType["cbsTokenTypeSas"] = "servicebus.windows.net:sastoken";
+    TokenType["CbsTokenTypeSas"] = "servicebus.windows.net:sastoken";
 })(TokenType = exports.TokenType || (exports.TokenType = {}));
 //# sourceMappingURL=token.js.map

@@ -57,7 +57,7 @@ class AadTokenProvider {
                 let expiry = Math.floor(expiresOn / 1000) + self.tokenValidTimeInSeconds - 5;
                 let tokenObj = {
                     expiry: expiry,
-                    tokenType: token_1.TokenType.cbsTokenTypeJwt,
+                    tokenType: token_1.TokenType.CbsTokenTypeJwt,
                     token: result.accessToken
                 };
                 resolve(tokenObj);

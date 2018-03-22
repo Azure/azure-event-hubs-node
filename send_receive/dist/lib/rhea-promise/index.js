@@ -3,6 +3,8 @@
 // Licensed under the MIT License. See License.txt in the project root for license information.
 Object.defineProperty(exports, "__esModule", { value: true });
 const rhea = require("rhea");
+const debugModule = require("debug");
+const debug = debugModule("rhea-promise");
 async function connect(options) {
     return new Promise((resolve, reject) => {
         const connection = rhea.connect(options);
@@ -10,12 +12,14 @@ async function connect(options) {
             connection.removeListener('connection_open', onOpen);
             connection.removeListener('connection_close', onClose);
             connection.removeListener('disconnected', onClose);
+            debug("Resolving the promise with amqp connection.");
             resolve(connection);
         }
         function onClose(err) {
             connection.removeListener('connection_open', onOpen);
             connection.removeListener('connection_close', onClose);
             connection.removeListener('disconnected', onClose);
+            debug(`Error occurred while establishing amqp connection.`, err.connection.error);
             reject(err);
         }
         connection.once('connection_open', onOpen);
@@ -30,15 +34,18 @@ async function createSession(connection) {
         function onOpen(context) {
             session.removeListener('session_open', onOpen);
             session.removeListener('session_close', onClose);
+            debug("Resolving the promise with amqp session.");
             resolve(session);
         }
         function onClose(err) {
             session.removeListener('session_open', onOpen);
             session.removeListener('session_close', onClose);
+            debug(`Error occurred while establishing a session over amqp connection.`, err.session.error);
             reject(err);
         }
         session.once('session_open', onOpen);
         session.once('session_close', onClose);
+        debug("Calling amqp session.begin().");
         session.begin();
     });
 }
@@ -49,11 +56,13 @@ async function createSender(session, options) {
         function onOpen(context) {
             sender.removeListener('sendable', onOpen);
             sender.removeListener('sender_close', onClose);
+            debug(`Resolving the promise with amqp sender "${sender.name}".`);
             resolve(sender);
         }
         function onClose(err) {
             sender.removeListener('sendable', onOpen);
             sender.removeListener('sender_close', onClose);
+            debug(`Error occurred while creating a sender over amqp connection.`, err.sender.error);
             reject(err);
         }
         sender.once('sendable', onOpen);
@@ -67,11 +76,13 @@ async function createReceiver(session, options) {
         function onOpen(context) {
             receiver.removeListener('receiver_open', onOpen);
             receiver.removeListener('receiver_close', onClose);
+            debug(`Resolving the promise with amqp receiver "${receiver.name}".`);
             resolve(receiver);
         }
         function onClose(err) {
             receiver.removeListener('receiver_open', onOpen);
             receiver.removeListener('receiver_close', onClose);
+            debug(`Error occurred while creating a receiver over amqp connection.`, err.receiver.error);
             reject(err);
         }
         receiver.once('receiver_open', onOpen);

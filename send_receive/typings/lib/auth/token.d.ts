@@ -7,11 +7,11 @@ export declare enum TokenType {
     /**
      * The "jwt" token type. Used with AADTokenProvider.
      */
-    cbsTokenTypeJwt = "jwt",
+    CbsTokenTypeJwt = "jwt",
     /**
      * The sas token type. Used with SasTokenProvider.
      */
-    cbsTokenTypeSas = "servicebus.windows.net:sastoken",
+    CbsTokenTypeSas = "servicebus.windows.net:sastoken",
 }
 /**
  * Provides information about the token.

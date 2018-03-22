@@ -8,6 +8,8 @@ const _1 = require(".");
 const cbs = require("./cbs");
 const rheaPromise = require("./rhea-promise");
 const rhea = require("rhea");
+const debugModule = require("debug");
+const debug = debugModule("azure:event-hubs:sender");
 /**
  * Instantiates a new sender from the AMQP `Sender`. Used by `EventHubClient`.
  *
@@ -50,6 +52,7 @@ class EventHubSender extends events_1.EventEmitter {
         try {
             let audience = `${this.client.config.endpoint}${this.address}`;
             const tokenObject = await this.client.tokenProvider.getToken(audience);
+            debug(`[${this.client.connection.options.id}] EH Sender: calling negotiateClaim for audience "${audience}"`);
             await cbs.negotiateClaim(audience, this.client.connection, tokenObject);
             if (!this._session && !this._sender) {
                 this._session = await rheaPromise.createSession(this.client.connection);
@@ -60,6 +63,7 @@ class EventHubSender extends events_1.EventEmitter {
                 };
                 this._sender = await rheaPromise.createSender(this._session, options);
                 this.name = this._sender.name;
+                debug(`[${this.client.connection.options.id}] Negotatited claim for sender "${this.name}" with with partition "${this.partitionId}"`);
             }
             this._ensureTokenRenewal();
         }
@@ -91,6 +95,7 @@ class EventHubSender extends events_1.EventEmitter {
                 message.message_annotations = {};
             message.message_annotations[Constants.partitionKey] = partitionKey;
         }
+        debug(`[${this.client.connection.options.id}] Sender "${this.name}", sending message: \n`, message);
         return this._sender.send(message);
     }
     /**
@@ -109,6 +114,7 @@ class EventHubSender extends events_1.EventEmitter {
         if (!this._session && !this._sender) {
             throw new Error("amqp sender is not present. Hence cannot send the message.");
         }
+        debug(`[${this.client.connection.options.id}] Sender "${this.name}", trying to send EventData[].`, datas);
         let messages = [];
         // Convert EventData to AmqpMessage.
         for (let i = 0; i < datas.length; i++) {
@@ -136,7 +142,9 @@ class EventHubSender extends events_1.EventEmitter {
             batchMessage.properties = messages[0].properties;
         }
         // Finally encode the envelope (batch message).
-        return this._sender.send(rhea.message.encode(batchMessage), undefined, 0x80013700);
+        const encodedBatchMessage = rhea.message.encode(batchMessage);
+        debug(`[${this.client.connection.options.id}] Sender "${this.name}", sending encoded batch message.`, encodedBatchMessage);
+        return this._sender.send(encodedBatchMessage, undefined, 0x80013700);
     }
     /**
      * "Unlink" this sender, closing the link and resolving when that operation is complete. Leaves the underlying connection/session open.
@@ -149,6 +157,8 @@ class EventHubSender extends events_1.EventEmitter {
             this.removeAllListeners();
             this._sender = undefined;
             this._session = undefined;
+            clearTimeout(this._tokenRenewalTimer);
+            debug(`[${this.client.connection.options.id}] Sender "${this.name}" closed.`);
         }
         catch (err) {
             return Promise.reject(err);
@@ -162,7 +172,9 @@ class EventHubSender extends events_1.EventEmitter {
         const tokenValidTimeInSeconds = this.client.tokenProvider.tokenValidTimeInSeconds;
         const tokenRenewalMarginInSeconds = this.client.tokenProvider.tokenRenewalMarginInSeconds;
         const nextRenewalTimeout = (tokenValidTimeInSeconds - tokenRenewalMarginInSeconds) * 1000;
-        setTimeout(async () => await this.init(), nextRenewalTimeout);
+        this._tokenRenewalTimer = setTimeout(async () => await this.init(), nextRenewalTimeout);
+        debug(`[${this.client.connection.options.id}] Sender "${this.name}", has next token renewal in ${nextRenewalTimeout / 1000} seconds ` +
+            `@(${new Date(Date.now() + nextRenewalTimeout).toString()}).`);
     }
 }
 exports.EventHubSender = EventHubSender;

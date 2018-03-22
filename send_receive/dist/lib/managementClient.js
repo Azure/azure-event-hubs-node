@@ -5,18 +5,18 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const uuid = require("uuid/v4");
 const rheaPromise = require("./rhea-promise");
 const Constants = require("./util/constants");
+const debugModule = require("debug");
+const rpc_1 = require("./rpc");
+const errors_1 = require("./errors");
+const utils_1 = require("./util/utils");
 const Buffer = require("buffer/").Buffer;
+const debug = debugModule("azure:event-hubs:management");
 /**
  * @class ManagementClient
  * Descibes the EventHubs Management Client that talks
  * to the $management endpoint over AMQP connection.
  */
 class ManagementClient {
-    /**
-     * @constructor
-     * Instantiates the management client.
-     * @param entityPath - The name/path of the entity (hub name) for which the management request needs to be made.
-     */
     constructor(entityPath) {
         this.entityPath = entityPath;
         this.entityPath = entityPath;
@@ -36,6 +36,7 @@ class ManagementClient {
             partitionIds: info.partition_ids,
             type: info.type
         };
+        debug(`[%s] The hub runtime info is.`, connection.options.id, runtimeInfo);
         return runtimeInfo;
     }
     /**
@@ -68,7 +69,16 @@ class ManagementClient {
             partitionId: info.partition,
             type: info.type
         };
+        debug(`[%s] The partition info is: ${partitionInfo}.`, connection.options.id);
         return partitionInfo;
+    }
+    async _init(connection, endpoint, replyTo) {
+        if (!this._mgmgtReqResLink) {
+            const rxopt = { source: { address: endpoint }, name: replyTo, target: { address: replyTo } };
+            debug("Creating a session for $management endpoint");
+            this._mgmgtReqResLink = await rpc_1.createRequestResponseLink(connection, { target: { address: endpoint } }, rxopt);
+            debug(`[${connection.options.id}] Created sender "${this._mgmgtReqResLink.sender.name}" and receiver "${this._mgmgtReqResLink.receiver.name}" links for $management endpoint.`);
+        }
     }
     /**
      * @private
@@ -100,26 +110,32 @@ class ManagementClient {
                 if (partitionId && type === Constants.partition) {
                     request.application_properties.partition = partitionId;
                 }
-                const rxopt = { source: { address: endpoint }, name: replyTo, target: { address: replyTo } };
-                const session = await rheaPromise.createSession(connection);
-                const [sender, receiver] = await Promise.all([
-                    rheaPromise.createSender(session, { target: { address: endpoint } }),
-                    rheaPromise.createReceiver(session, rxopt)
-                ]);
+                await utils_1.defaultLock.acquire(Constants.managementRequestKey, () => { return this._init(connection, endpoint, replyTo); });
                 // TODO: Handle timeout incase SB/EH does not send a response.
-                receiver.on(Constants.message, ({ message, delivery }) => {
+                const messageCallback = ({ message, delivery }) => {
+                    // remove the event listener as this will be registered next time when someone makes a request.
+                    this._mgmgtReqResLink.receiver.removeListener(Constants.message, messageCallback);
                     const code = message.application_properties[Constants.statusCode];
                     const desc = message.application_properties[Constants.statusDescription];
-                    if (code === 200) {
+                    debug(`[${connection.options.id}] $management request: \n`, request);
+                    debug(`[${connection.options.id}] $management response: \n`, message);
+                    if (code === rheaPromise.AmqpResponseStatusCode.OK || code === rheaPromise.AmqpResponseStatusCode.Accepted) {
                         return resolve(message.body);
                     }
-                    else if (code === 404) {
-                        return reject(desc);
+                    else {
+                        const condition = errors_1.ConditionStatusMapper[code] || "amqp:internal-error";
+                        let e = {
+                            condition: condition,
+                            description: desc
+                        };
+                        return reject(errors_1.translate(e));
                     }
-                });
-                sender.send(request);
+                };
+                this._mgmgtReqResLink.receiver.on(Constants.message, messageCallback);
+                this._mgmgtReqResLink.sender.send(request);
             }
             catch (err) {
+                debug(`An error occurred while making the request to $management endpoint: \n`, err);
                 reject(err);
             }
         });

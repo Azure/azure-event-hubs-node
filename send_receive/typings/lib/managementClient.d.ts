@@ -62,6 +62,7 @@ export declare class ManagementClient {
      * Instantiates the management client.
      * @param entityPath - The name/path of the entity (hub name) for which the management request needs to be made.
      */
+    private _mgmgtReqResLink?;
     constructor(entityPath: string);
     /**
      * Provides the eventhub runtime information.
@@ -84,6 +85,7 @@ export declare class ManagementClient {
      * @param {(string|number)} partitionId Partition ID for which partition information is required.
      */
     getPartitionInformation(connection: any, partitionId: string | number): Promise<EventHubPartitionRuntimeInformation>;
+    private _init(connection, endpoint, replyTo);
     /**
      * @private
      * Helper method to make the management request

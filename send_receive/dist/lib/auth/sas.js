@@ -50,7 +50,7 @@ class SasTokenProvider {
         const sig = encodeURIComponent(crypto.createHmac('sha256', this.key).update(stringToSign, 'utf8').digest('base64'));
         return {
             token: `SharedAccessSignature sr=${audience}&sig=${sig}&se=${expiry}&skn=${keyName}`,
-            tokenType: token_1.TokenType.cbsTokenTypeSas,
+            tokenType: token_1.TokenType.CbsTokenTypeSas,
             expiry: expiry
         };
     }

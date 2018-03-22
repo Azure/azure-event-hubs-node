@@ -1,4 +1,6 @@
 "use strict";
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.partitionKey = "x-opt-partition-key";
 exports.sequenceNumber = "x-opt-sequence-number";
@@ -25,8 +27,12 @@ exports.maxUserAgentLength = 128;
 exports.packageJsonInfo = require("../../../package.json");
 exports.vendorString = "com.microsoft";
 exports.attachEpoch = `${exports.vendorString}:epoch`;
+exports.enableReceiverRuntimeMetricName = `${exports.vendorString}:enable-receiver-runtime-metric`;
 exports.receiverError = "receiver_error";
 exports.senderError = "sender_error";
 exports.sessionError = "session_error";
 exports.connectionError = "connection_error";
+exports.defaultOperationTimeoutInSeconds = 60;
+exports.managementRequestKey = "managementRequest";
+exports.negotiateCbsKey = "negotiateCbs";
 //# sourceMappingURL=constants.js.map

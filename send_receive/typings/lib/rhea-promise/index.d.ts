@@ -228,7 +228,7 @@ export interface Context {
     session: any;
     sender?: any;
 }
-export interface AmqpError extends Error {
+export interface AmqpError {
     condition?: string;
     description?: string;
     info?: any;

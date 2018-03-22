@@ -11,6 +11,8 @@ const aad_1 = require("./auth/aad");
 const os = require("os");
 const process = require("process");
 const managementClient_1 = require("./managementClient");
+const debugModule = require("debug");
+const debug = debugModule("azure:event-hubs:client");
 class EventHubClient {
     /**
      * Instantiate a client pointing to the Event Hub given by this configuration.
@@ -38,6 +40,8 @@ class EventHubClient {
     async close() {
         if (this.connection) {
             await this.connection.close();
+            debug(`Closed the amqp connection "${this.connection.options.id}" on the client.`);
+            this.connection = undefined;
         }
     }
     /**
@@ -65,11 +69,13 @@ class EventHubClient {
      *
      * @constructor
      * @param {EventHubClient} client                            The EventHub client.
-     * @param {(string | number)} partitionId                    Partition ID from which to receive.
+     * @param {string} partitionId                    Partition ID from which to receive.
      * @param {ReceiveOptions} [options]                         Options for how you'd like to connect.
      * @param {string} [options.consumerGroup]                   Consumer group from which to receive.
      * @param {number} [options.prefetchcount]                   The upper limit of events this receiver will
      * actively receive regardless of whether a receive operation is pending.
+     * @param {boolean} [options.enableReceiverRuntimeMetric]    Provides the approximate receiver runtime information
+     * for a logical partition of an Event Hub if the value is true. Default false.
      * @param {number} [options.epoch]                           The epoch value that this receiver is currently
      * using for partition ownership. A value of undefined means this receiver is not an epoch-based receiver.
      * @param {ReceiveOptions.filter} [options.filter]           Filter settings on the receiver. Only one of
@@ -161,7 +167,9 @@ class EventHubClient {
             if (useSaslPlain) {
                 connectOptions.password = this.config.sharedAccessKey;
             }
+            debug(`Dialling the amqp connection with options.`, connectOptions);
             this.connection = await rheaPromise.connect(connectOptions);
+            debug(`Successfully established the amqp connection "${this.connection.options.id}".`);
         }
     }
     /**

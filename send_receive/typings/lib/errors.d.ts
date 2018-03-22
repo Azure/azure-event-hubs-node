@@ -1,5 +1,31 @@
 import { AmqpError } from "../lib/rhea-promise";
 /**
+ * Maps the conditions to the numeric AMQP Response status codes.
+ * @enum {ConditionStatusMapper}
+ */
+export declare enum ConditionStatusMapper {
+    "com.microsoft:timeout" = 408,
+    "amqp:not-found" = 404,
+    "amqp:not-implemented" = 501,
+    "com.microsoft:entity-already-exists" = 409,
+    "com.microsoft:session-lock-lost" = 410,
+    "com.microsoft:no-matching-subscription" = 500,
+    "amqp:link:message-size-exceeded" = 403,
+    "com.microsoft:server-busy" = 503,
+    "com.microsoft:argument-error" = 400,
+    "com.microsoft:argument-out-of-range" = 400,
+    "com.microsoft:store-lock-lost" = 410,
+    "com.microsoft:session-cannot-be-locked" = 410,
+    "com.microsoft:partition-not-owned" = 410,
+    "com.microsoft:entity-disabled" = 400,
+    "com.microsoft:publisher-revoked" = 401,
+    "amqp:link:stolen" = 410,
+    "amqp:not-allowed" = 400,
+    "amqp:unauthorized-access" = 401,
+    "amqp:resource-limit-exceeded" = 403,
+    "com.microsoft:message-lock-lost" = 410,
+}
+/**
  * Error is thrown when an argument has a value that is out of the admissible range.
  *
  * @augments {Error}
@@ -121,6 +147,45 @@ export declare class InvalidFieldError extends Error {
     constructor(message?: string);
 }
 /**
+ * Error is thrown when the client attempted to work with a server entity to which it
+ * has no access because another client is working with it.
+ *
+ * @augments {Error}
+ */
+export declare class ResourceLockedError extends Error {
+    condition: string;
+    constructor(message?: string);
+}
+/**
+ * Error is thrown when a server entity the client is working with has been deleted.
+ *
+ * @augments {Error}
+ */
+export declare class ResourceDeletedError extends Error {
+    condition: string;
+    constructor(message?: string);
+}
+/**
+ * Error is thrown when the peer sent a frame that is not permitted in the current state.
+ *
+ * @augments {Error}
+ */
+export declare class IllegalStateError extends Error {
+    condition: string;
+    constructor(message?: string);
+}
+/**
+ * Error is thrown when the peer cannot send a frame because the smallest encoding of
+ * the performative with the currently valid values would be too large to fit within
+ * a frame of the agreed maximum frame size.
+ *
+ * @augments {Error}
+ */
+export declare class FrameSizeTooSmallError extends Error {
+    condition: string;
+    constructor(message?: string);
+}
+/**
  * Error is thrown when the address provided cannot be resolved to a terminus at the current container
  *
  * @augments {Error}
@@ -175,7 +240,7 @@ export declare class HanldeInUseError extends Error {
     constructor(message?: string);
 }
 /**
- * Error is thrown when A frame (other than attach) was received referencing a handle which is not
+ * Error is thrown when a frame (other than attach) was received referencing a handle which is not
  * currently in use of an attached link.
  *
  * @augments {Error}
@@ -185,9 +250,63 @@ export declare class UnattachedHandleError extends Error {
     constructor(message?: string);
 }
 /**
+ * Error is thrown when an operator intervened to close the connection for some reason.
+ * @augments {Error}
+ */
+export declare class ConnectionForcedError extends Error {
+    condition: string;
+    constructor(message?: string);
+}
+/**
+ * Error is thrown when a valid frame header cannot be formed from the incoming byte stream.
+ *
+ * @augments {Error}
+ */
+export declare class FramingError extends Error {
+    condition: string;
+    constructor(message?: string);
+}
+/**
+ * Error is thrown when the container is no longer available on the current connection.
+ *
+ * @augments {Error}
+ */
+export declare class ConnectionRedirectError extends Error {
+    condition: string;
+    constructor(message?: string);
+}
+/**
+ * Error is thrown when the server is busy. Callers should wait a while and retry the operation.
+ *
+ * @augments {Error}
+ */
+export declare class ServerBusyError extends Error {
+    condition: string;
+    constructor(message?: string);
+}
+/**
+ * Error is thrown when an incorrect argument was received.
+ *
+ * @augments {Error}
+ */
+export declare class ArgumentError extends Error {
+    condition: string;
+    constructor(message?: string);
+}
+/**
+ * Error for signaling general communication errors related to messaging operations.
+ *
+ * @augments {Error}
+ */
+export declare class EventHubsCommunicationError extends Error {
+    condition: string;
+    constructor(message?: string);
+}
+/**
  * Translates the AQMP error received at the protocol layer into an EventHub JS Error.
  *
  * @param {AmqpError} err The amqp error that was received.
+ * @param {any} code The status code if any.
  * @returns {Error} eventHubError object.
  */
 export declare function translate(err: AmqpError): Error;
