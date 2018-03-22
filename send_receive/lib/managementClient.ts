@@ -98,7 +98,7 @@ export class ManagementClient {
       partitionIds: info.partition_ids,
       type: info.type
     };
-    debug(`The hub runtime info is.`, runtimeInfo);
+    debug(`[%s] The hub runtime info is.`, connection.options.id, runtimeInfo);
     return runtimeInfo;
   }
 
@@ -133,7 +133,7 @@ export class ManagementClient {
       partitionId: info.partition,
       type: info.type
     };
-    debug(`The partition info is: ${partitionInfo}.`);
+    debug(`[%s] The partition info is: ${partitionInfo}.`, connection.options.id);
     return partitionInfo;
   }
 
@@ -142,7 +142,7 @@ export class ManagementClient {
       const rxopt: rheaPromise.ReceiverOptions = { source: { address: endpoint }, name: replyTo, target: { address: replyTo } };
       debug("Creating a session for $management endpoint");
       this._mgmgtReqResLink = await createRequestResponseLink(connection, { target: { address: endpoint } }, rxopt);
-      debug(`Created sender "${this._mgmgtReqResLink.sender.name}" and receiver "${this._mgmgtReqResLink.receiver.name}" links for $management endpoint.`);
+      debug(`[${connection.options.id}] Created sender "${this._mgmgtReqResLink.sender.name}" and receiver "${this._mgmgtReqResLink.receiver.name}" links for $management endpoint.`);
     }
   }
 
@@ -183,8 +183,8 @@ export class ManagementClient {
           this._mgmgtReqResLink!.receiver.removeListener(Constants.message, messageCallback);
           const code: number = message.application_properties[Constants.statusCode];
           const desc: string = message.application_properties[Constants.statusDescription];
-          debug(`$management request: \n`, request);
-          debug(`$management response: \n`, message);
+          debug(`[${connection.options.id}] $management request: \n`, request);
+          debug(`[${connection.options.id}] $management response: \n`, message);
           if (code === rheaPromise.AmqpResponseStatusCode.OK || code === rheaPromise.AmqpResponseStatusCode.Accepted) {
             return resolve(message.body);
           } else {

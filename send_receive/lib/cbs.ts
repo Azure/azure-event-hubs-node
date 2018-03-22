@@ -37,7 +37,7 @@ async function init(connection: any): Promise<void> {
       name: replyTo
     };
     cbsSenderReceiverLink = await createRequestResponseLink(connection, { target: { address: endpoint } }, rxOpt);
-    debug(`Successfully created the cbs sender "${cbsSenderReceiverLink.sender.name}" and receiver "${cbsSenderReceiverLink.receiver.name}" links over cbs session.`);
+    debug(`[${connection.options.id}] Successfully created the cbs sender "${cbsSenderReceiverLink.sender.name}" and receiver "${cbsSenderReceiverLink.receiver.name}" links over cbs session.`);
   }
 }
 
@@ -64,8 +64,8 @@ export function negotiateClaim(audience: string, connection: any, tokenObject: T
         const code: number = result.message.application_properties[Constants.statusCode];
         const desc: string = result.message.application_properties[Constants.statusDescription];
         let errorCondition: string | undefined = result.message.application_properties[Constants.errorCondition];
-        debug(`$cbs request: \n`, request);
-        debug(`$cbs response: \n`, result.message);
+        debug(`[${connection.options.id}] $cbs request: \n`, request);
+        debug(`[${connection.options.id}] $cbs response: \n`, result.message);
         if (code > 199 && code < 300) {
           resolve();
         } else {
@@ -87,7 +87,7 @@ export function negotiateClaim(audience: string, connection: any, tokenObject: T
       cbsSenderReceiverLink.receiver.on(Constants.message, messageCallback);
       cbsSenderReceiverLink.sender.send(request);
     } catch (err) {
-      debug(`An error occurred while negotating the cbs claim: \n`, err);
+      debug(`[${connection.options.id}] An error occurred while negotating the cbs claim: \n`, err);
       reject(err);
     }
   });

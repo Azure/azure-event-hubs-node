@@ -48,7 +48,7 @@ export class EventHubClient {
 
   config: ConnectionConfig;
   tokenProvider: TokenProvider;
-  connection: any;
+  connection?: any;
   userAgent: string = "/js-event-hubs";
   private managementClient: ManagementClient;
 
@@ -78,7 +78,8 @@ export class EventHubClient {
   async close(): Promise<any> {
     if (this.connection) {
       await this.connection.close();
-      debug("Closed the amqp connection on the client.");
+      debug(`Closed the amqp connection "${this.connection.options.id}" on the client.`);
+      this.connection = undefined;
     }
   }
 
@@ -210,7 +211,7 @@ export class EventHubClient {
       }
       debug(`Dialling the amqp connection with options.`, connectOptions);
       this.connection = await rheaPromise.connect(connectOptions);
-      debug(`Successfully established the amqp connection.`);
+      debug(`Successfully established the amqp connection "${this.connection.options.id}".`);
     }
   }
 

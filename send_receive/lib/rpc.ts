@@ -36,7 +36,7 @@ export async function createRequestResponseLink(connection: any, senderOptions: 
     createSender(session, senderOptions),
     createReceiver(session, receiverOptions)
   ]);
-  debug("Successfully created the sender and receiver links on the same session.");
+  debug(`[${connection.options.id}] Successfully created the sender and receiver links on the same session.`);
   return {
     session: session,
     sender: sender,
@@ -54,7 +54,7 @@ export async function createReceiverLink(connection: any, receiverOptions: Recei
   }
   let session = await createSession(connection);
   let receiver = await createReceiver(session, receiverOptions);
-  debug("Successfully created the receiver link on a dedicated session for it.");
+  debug(`[${connection.options.id}] Successfully created the receiver link on a dedicated session for it.`);
   return {
     session: session,
     receiver: receiver
@@ -70,7 +70,7 @@ export async function createSenderLink(connection: any, senderOptions: SenderOpt
   }
   let session = await createSession(connection);
   let sender = await createSender(session, senderOptions);
-  debug("Successfully created the sender link on a dedicated session for it.");
+  debug(`[${connection.options.id}] Successfully created the sender link on a dedicated session for it.`);
   return {
     session: session,
     sender: sender

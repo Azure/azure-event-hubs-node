@@ -128,7 +128,7 @@ export default class EventProcessorHost extends EventEmitter {
       filterOptions = { startAfterOffset: checkpoint.offset };
     }
     const receiver = await this._eventHubClient.createReceiver(partitionId, { consumerGroup: this._consumerGroup, filter: filterOptions });
-    debug(`Attaching receiver "${receiver.name}" for partition "${partitionId}" with offset: ${(checkpoint ? checkpoint.offset : "None")}`);
+    debug(`[${this._eventHubClient.connection.options.id}] Attaching receiver "${receiver.name}" for partition "${partitionId}" with offset: ${(checkpoint ? checkpoint.offset : "None")}`);
     this.emit(EventProcessorHost.opened, context);
     this._receiverByPartition![partitionId] = receiver;
     receiver.on("message", (message) => {
@@ -144,6 +144,7 @@ export default class EventProcessorHost extends EventEmitter {
     if (receiver) {
       delete this._receiverByPartition![partitionId];
       await receiver.close();
+      debug(`[${this._eventHubClient.connection.options.id}] Closed the receiver "${receiver.name}".`);
       this.emit(EventProcessorHost.closed, context, reason);
     }
   }

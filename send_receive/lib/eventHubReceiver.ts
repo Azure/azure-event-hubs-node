@@ -135,7 +135,7 @@ export class EventHubReceiver extends EventEmitter {
     try {
       const audience = `${this.client.config.endpoint}${this.address}`;
       const tokenObject = await this.client.tokenProvider.getToken(audience);
-      debug(`EH Receiver: calling negotiateClaim for audience: ${audience}.`);
+      debug(`[${this.client.connection.options.id}] EH Receiver: calling negotiateClaim for audience: ${audience}.`);
       await cbs.negotiateClaim(audience, this.client.connection, tokenObject);
       if (!this._session && !this._receiver) {
         let rcvrOptions: rheaPromise.ReceiverOptions = {
@@ -176,8 +176,8 @@ export class EventHubReceiver extends EventEmitter {
         this._session = await rheaPromise.createSession(this.client.connection);
         this._receiver = await rheaPromise.createReceiver(this._session, rcvrOptions);
         this.name = this._receiver.name;
-        debug(`Receiver "${this.name}" created with receiver options.`, rcvrOptions);
-        debug(`Negotatited claim for receiver "${this.name}" with with partition "${this.partitionId}"`);
+        debug(`[${this.client.connection.options.id}] Receiver "${this.name}" created with receiver options.`, rcvrOptions);
+        debug(`[${this.client.connection.options.id}] Negotatited claim for receiver "${this.name}" with with partition "${this.partitionId}"`);
       }
       this._ensureTokenRenewal();
     } catch (err) {
@@ -258,7 +258,7 @@ export class EventHubReceiver extends EventEmitter {
       this._receiver = undefined;
       this._session = undefined;
       clearTimeout(this._tokenRenewalTimer as NodeJS.Timer);
-      debug(`Receiver "${this.name}" has been closed.`);
+      debug(`[${this.client.connection.options.id}] Receiver "${this.name}" has been closed.`);
     } catch (err) {
       return Promise.reject(err);
     }
@@ -272,7 +272,7 @@ export class EventHubReceiver extends EventEmitter {
     const tokenRenewalMarginInSeconds = this.client.tokenProvider.tokenRenewalMarginInSeconds;
     const nextRenewalTimeout = (tokenValidTimeInSeconds - tokenRenewalMarginInSeconds) * 1000;
     this._tokenRenewalTimer = setTimeout(async () => await this.init(), nextRenewalTimeout);
-    debug(`Receiver "${this.name}", has next token renewal in ${nextRenewalTimeout / 1000} seconds ` +
+    debug(`[${this.client.connection.options.id}] Receiver "${this.name}", has next token renewal in ${nextRenewalTimeout / 1000} seconds ` +
       `@(${new Date(Date.now() + nextRenewalTimeout).toString()}).`);
   }
 }
