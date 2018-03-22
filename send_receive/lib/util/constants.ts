@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+
 export const partitionKey = "x-opt-partition-key";
 export const sequenceNumber = "x-opt-sequence-number";
 export const enqueuedTime = "x-opt-enqueued-time";
@@ -29,4 +32,6 @@ export const senderError = "sender_error";
 export const sessionError = "session_error";
 export const connectionError = "connection_error";
 export const defaultOperationTimeoutInSeconds = 60;
+export const managementRequestKey = "managementRequest";
+export const negotiateCbsKey = "negotiateCbs";
 

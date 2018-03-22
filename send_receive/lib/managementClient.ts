@@ -4,9 +4,11 @@
 import * as uuid from "uuid/v4";
 import * as rheaPromise from "./rhea-promise";
 import * as Constants from "./util/constants";
+import * as debugModule from "debug";
 import { RequestResponseLink, createRequestResponseLink } from "./rpc";
 import { translate, ConditionStatusMapper } from "./errors";
-import * as debugModule from "debug";
+import { defaultLock } from "./util/utils";
+
 const Buffer = require("buffer/").Buffer;
 const debug = debugModule("azure:event-hubs:management");
 
@@ -135,6 +137,15 @@ export class ManagementClient {
     return partitionInfo;
   }
 
+  private async _init(connection: any, endpoint: string, replyTo: string): Promise<void> {
+    if (!this._mgmgtReqResLink) {
+      const rxopt: rheaPromise.ReceiverOptions = { source: { address: endpoint }, name: replyTo, target: { address: replyTo } };
+      debug("Creating a session for $management endpoint");
+      this._mgmgtReqResLink = await createRequestResponseLink(connection, { target: { address: endpoint } }, rxopt);
+      debug(`Created sender "${this._mgmgtReqResLink.sender.name}" and receiver "${this._mgmgtReqResLink.receiver.name}" links for $management endpoint.`);
+    }
+  }
+
   /**
    * @private
    * Helper method to make the management request
@@ -165,12 +176,7 @@ export class ManagementClient {
         if (partitionId && type === Constants.partition) {
           request.application_properties.partition = partitionId;
         }
-        if (!this._mgmgtReqResLink) {
-          const rxopt: rheaPromise.ReceiverOptions = { source: { address: endpoint }, name: replyTo, target: { address: replyTo } };
-          debug("Creating a session for $management endpoint");
-          this._mgmgtReqResLink = await createRequestResponseLink(connection, { target: { address: endpoint } }, rxopt);
-          debug(`Created sender "${this._mgmgtReqResLink.sender.name}" and receiver "${this._mgmgtReqResLink.receiver.name}" links for $management endpoint.`);
-        }
+        await defaultLock.acquire(Constants.managementRequestKey, () => { return this._init(connection, endpoint, replyTo); });
         // TODO: Handle timeout incase SB/EH does not send a response.
         const messageCallback = ({ message, delivery }: any) => {
           // remove the event listener as this will be registered next time when someone makes a request.
@@ -190,8 +196,8 @@ export class ManagementClient {
             return reject(translate(e));
           }
         };
-        this._mgmgtReqResLink.receiver.on(Constants.message, messageCallback);
-        this._mgmgtReqResLink.sender.send(request);
+        this._mgmgtReqResLink!.receiver.on(Constants.message, messageCallback);
+        this._mgmgtReqResLink!.sender.send(request);
       } catch (err) {
         debug(`An error occurred while making the request to $management endpoint: \n`, err);
         reject(err);

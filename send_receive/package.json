@@ -6,13 +6,15 @@
   "license": "MIT",
   "main": "./lib",
   "dependencies": {
-    "@types/node": "^8.0.37",
+    "@types/async-lock": "^1.1.0",
     "@types/debug": "^0.0.30",
-    "debug": "^3.1.0",
+    "@types/node": "^8.0.37",
+    "async-lock": "^1.1.2",
     "azure-arm-eventhub": "^1.2.0-preview",
+    "azure-storage": "^2.8.1",
     "buffer": "^5.1.0",
-    "rhea": "amqp/rhea#master",
-    "azure-storage": "^2.8.1"
+    "debug": "^3.1.0",
+    "rhea": "amqp/rhea#master"
   },
   "devDependencies": {
     "typescript": "^2.7.2",

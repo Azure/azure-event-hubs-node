@@ -8,7 +8,7 @@ import * as uuid from "uuid/v4";
 import * as Constants from "./util/constants";
 import * as debugModule from "debug";
 import { ConditionStatusMapper, translate } from "./errors";
-
+import { defaultLock } from "./util/utils";
 const debug = debugModule("azure:event-hubs:cbs");
 
 /**
@@ -37,14 +37,14 @@ async function init(connection: any): Promise<void> {
       name: replyTo
     };
     cbsSenderReceiverLink = await createRequestResponseLink(connection, { target: { address: endpoint } }, rxOpt);
+    debug(`Successfully created the cbs sender "${cbsSenderReceiverLink.sender.name}" and receiver "${cbsSenderReceiverLink.receiver.name}" links over cbs session.`);
   }
-  debug(`Successfully created the cbs sender "${cbsSenderReceiverLink.sender.name}" and receiver "${cbsSenderReceiverLink.receiver.name}" links over cbs session.`);
 }
 
 export function negotiateClaim(audience: string, connection: any, tokenObject: TokenInfo): Promise<any> {
   return new Promise(async (resolve: any, reject: any): Promise<void> => {
     try {
-      await init(connection);
+      await defaultLock.acquire(Constants.negotiateCbsKey, () => { return init(connection); });
       const request = {
         body: tokenObject.token,
         properties: {
