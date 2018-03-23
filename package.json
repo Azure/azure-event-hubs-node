@@ -14,7 +14,9 @@
     "azure-storage": "^2.8.1",
     "buffer": "^5.1.0",
     "debug": "^3.1.0",
-    "rhea": "amqp/rhea#master"
+    "rhea": "amqp/rhea#master",
+    "ms-rest": "^2.3.2",
+    "ms-rest-azure": "^2.5.5"
   },
   "devDependencies": {
     "typescript": "^2.7.2",
