@@ -58,6 +58,7 @@ export class EventHubClient {
    * @constructor
    * @param {ConnectionConfig} config - The connection configuration to create the EventHub Client.
    * @param {TokenProvider} [tokenProvider] - The token provider that provides the token for authentication.
+   * Default value: SasTokenProvider.
    */
   constructor(config: ConnectionConfig, tokenProvider?: TokenProvider) {
     this.config = config;
@@ -160,8 +161,12 @@ export class EventHubClient {
    * @returns {Promise<Array<string>>}
    */
   async getPartitionIds(): Promise<Array<string>> {
-    let runtimeInfo = await this.getHubRuntimeInformation();
-    return runtimeInfo.partitionIds;
+    try {
+      let runtimeInfo = await this.getHubRuntimeInformation();
+      return runtimeInfo.partitionIds;
+    } catch (err) {
+      return Promise.reject(err);
+    }
   }
 
   /**
@@ -220,7 +225,7 @@ export class EventHubClient {
    * @method createFromConnectionString
    * @param {string} connectionString - Connection string of the form 'Endpoint=sb://my-servicebus-namespace.servicebus.windows.net/;SharedAccessKeyName=my-SA-name;SharedAccessKey=my-SA-key'
    * @param {string} [path] - EventHub path of the form 'my-event-hub-name'
-   * @param {TokenProvider} [tokenProvider] - An instance of the token provider that provides the token for authentication.
+   * @param {TokenProvider} [tokenProvider] - An instance of the token provider that provides the token for authentication. Default value: SasTokenProvider.
    * @returns {EventHubClient} - An instance of the eventhub client.
    */
   static createFromConnectionString(connectionString: string, path?: string, tokenProvider?: TokenProvider): EventHubClient {
@@ -240,6 +245,7 @@ export class EventHubClient {
    * @method
    * @param {string} host - Fully qualified domain name for Event Hubs. Most likely, {yournamespace}.servicebus.windows.net
    * @param {string} entityPath - EventHub path of the form 'my-event-hub-name'
+   * @param {TokenCredentials} credentials - The AAD Token credentials. It can be one of the following: ApplicationTokenCredentials | UserTokenCredentials | DeviceTokenCredentials | MSITokenCredentials.
    */
   static createFromAadTokenCredentials(host: string, entityPath: string, credentials: ApplicationTokenCredentials | UserTokenCredentials | DeviceTokenCredentials | MSITokenCredentials): EventHubClient {
     if (!host || (host && typeof host !== "string")) {

@@ -3,17 +3,73 @@
 
 import { EventEmitter } from "events";
 import * as debugModule from "debug";
-import Lease from "./lease";
+import BlobLease, { Lease } from "./blobLease";
 import { Dictionary } from "../eventData";
 const debug = debugModule("cerulean:lease-manager");
 
+/**
+ * Interface describing the Lease with renew interval and expiry time.
+ * @interface LeaseWithDuration
+ */
 export interface LeaseWithDuration {
+  /**
+   * @property {Lease} lease - The actual lease.
+   */
   lease: Lease;
+  /**
+   * @property {NodeJS.Timer} [interval] The renew interval.
+   */
   interval?: NodeJS.Timer;
+  /**
+   * @property {number} [expires] The time in which the lease expires.
+   */
   expires?: number;
 }
 
-export default class LeaseManager extends EventEmitter {
+export namespace LeaseManager {
+  export const acquired = "lease:acquired";
+  export const lost = "lease:lost";
+  export const released = "lease:released";
+  export let defaultLeaseDuration: number;
+}
+
+/**
+ * Interface describing the LeaseManager. You can implement your own LeaseManager.
+ * @interface
+ */
+export interface LeaseManager extends EventEmitter {
+  /**
+   * @property {number} leaseDuration The amount of time for which the lease can be held.
+   */
+  leaseDuration: number;
+  /**
+   * @property {object} leases A dictionary of leases that the manager is currently managing.
+   */
+  leases: Dictionary<LeaseWithDuration>;
+  /**
+   * Resets the dictionary of leases to an empty object.
+   * @method reset
+   */
+  reset(): void;
+  /**
+   * Manages the specified lease.
+   * @param {Lease} lease The lease to be managed.
+   */
+  manageLease(lease: Lease): void;
+  /**
+   * Unmanages the specified lease.
+   * @param {Lease} lease The lease to be unmanaged.
+   */
+  unmanageLease(lease: Lease): Promise<void>;
+}
+
+/**
+ * Describes the Azure Storage Blob lease manager.
+ * @class BlobLeaseManager
+ * @extends EventEmitter
+ * @implements LeaseManager
+ */
+export default class BlobLeaseManager extends EventEmitter implements LeaseManager {
   // Events
   static acquired: string = "lease:acquired";
   static lost: string = "lease:lost";
@@ -21,51 +77,71 @@ export default class LeaseManager extends EventEmitter {
   // seconds
   static defaultLeaseDuration: number = 60;
 
-  leaseDuration: number = LeaseManager.defaultLeaseDuration;
+  leaseDuration: number = BlobLeaseManager.defaultLeaseDuration;
   leases: Dictionary<LeaseWithDuration>;
 
+  /**
+   * Instantiates a BlobLeaseManager.
+   * @constructor
+   * @param {number} [leaseDurationInSeconds] The lease duration in seconds for which it can be held. Default value: 60.
+   */
   constructor(leaseDurationInSeconds?: number) {
     super();
     this.leases = {};
-    this.leaseDuration = leaseDurationInSeconds || LeaseManager.defaultLeaseDuration;
+    this.leaseDuration = leaseDurationInSeconds || BlobLeaseManager.defaultLeaseDuration;
   }
 
-  manageLease(lease: Lease): void {
+  /**
+   * Resets the leases dictionary to an empty object.
+   */
+  reset(): void {
+    this.leases = {};
+  }
+
+  /**
+   * Manages the specified blob lease.
+   * @param {BlobLease} lease The lease to be managed.
+   */
+  manageLease(lease: BlobLease): void {
     this.leases[lease.fullUri] = { lease: lease };
     this._acquire(lease);
   }
 
-  async unmanageLease(lease: Lease): Promise<void> {
+  /**
+   * Unmanages the specified blob lease.
+   * @param {BlobLease} lease The lease to be unmanaged.
+   */
+  async unmanageLease(lease: BlobLease): Promise<void> {
     try {
       if (this.leases[lease.fullUri].interval) {
         this._unmanage(lease);
         await lease.release();
         debug("Released " + lease.fullUri);
-        lease.setIsHeld(false);
-        this.emit(LeaseManager.released, lease);
+        lease.isHeld = false;
+        this.emit(BlobLeaseManager.released, lease);
       }
     } catch (ignored) {
       debug("Ignoring error when unmanaging lease, as it likely means it was not held: ", ignored);
-      this.emit(LeaseManager.released, lease);
+      this.emit(BlobLeaseManager.released, lease);
     }
   }
 
-  private _unmanage(lease: Lease): void {
+  private _unmanage(lease: BlobLease): void {
     if (this.leases[lease.fullUri].interval) clearInterval(this.leases[lease.fullUri].interval as NodeJS.Timer);
     delete this.leases[lease.fullUri].interval;
   }
 
-  private async _acquire(lease: Lease): Promise<void> {
+  private async _acquire(lease: BlobLease): Promise<void> {
     try {
       const acquireLease = async (): Promise<void> => {
         try {
           await lease.acquire({ leaseDuration: this.leaseDuration });
           debug("Acquired " + lease.fullUri);
-          lease.setIsHeld(true);
+          lease.isHeld = true;
           this._unmanage(lease);
           this.leases[lease.fullUri].expires = Date.now() + (this.leaseDuration * 1000);
           this._maintain(lease);
-          this.emit(LeaseManager.acquired, lease);
+          this.emit(BlobLeaseManager.acquired, lease);
         } catch (error) {
           const msg = `Failed to acquire lease for "${lease.fullUri}": "${error}". Will retry.`;
           debug(msg);
@@ -79,7 +155,7 @@ export default class LeaseManager extends EventEmitter {
     }
   }
 
-  private async _maintain(lease: Lease): Promise<void> {
+  private async _maintain(lease: BlobLease): Promise<void> {
     try {
       const renewPeriod = (this.leaseDuration / 4) * 1000;
       this.leases[lease.fullUri].interval = setInterval(async () => {
@@ -92,8 +168,8 @@ export default class LeaseManager extends EventEmitter {
             // We"ll expire before next renewal comes in.
             // Alert a lease loss, delay a bit, and then queue up a re-acquire.
             this._unmanage(lease);
-            this.emit(LeaseManager.lost, lease);
-            lease.setIsHeld(false);
+            this.emit(BlobLeaseManager.lost, lease);
+            lease.isHeld = false;
             setTimeout(() => {
               debug(`Lease "${lease.fullUri}" lost. Attempting to re-acquire.`);
               this._acquire(lease);

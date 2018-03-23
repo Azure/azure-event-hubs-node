@@ -1,14 +1,16 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License. See License.txt in the project root for license information.
 
-import { EventEmitter } from "events";
-import * as Constants from "./util/constants";
-import { EventHubClient, EventData } from ".";
-import * as cbs from "./cbs";
-import * as rheaPromise from "./rhea-promise";
-import { AmqpMessage } from "./eventData";
 import * as rhea from "rhea";
 import * as debugModule from "debug";
+import * as cbs from "./cbs";
+import * as errors from "./errors";
+import * as rheaPromise from "./rhea-promise";
+import * as Constants from "./util/constants";
+import { EventEmitter } from "events";
+import { EventHubClient, EventData } from ".";
+import { AmqpMessage } from "./eventData";
+
 const debug = debugModule("azure:event-hubs:sender");
 
 /**
@@ -37,7 +39,7 @@ export class EventHubSender extends EventEmitter {
     }
 
     const onError = (context: rheaPromise.Context) => {
-      this.emit(Constants.senderError, context.sender.error);
+      this.emit(Constants.error, errors.translate(context.sender.error));
     };
 
     this.on("newListener", (event) => {

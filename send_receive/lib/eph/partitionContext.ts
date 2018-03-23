@@ -4,27 +4,36 @@
 import * as debugModule from "debug";
 const debug = debugModule("azure:event-hubs:processor:partition");
 import * as uuid from "uuid/v4";
-import { AmqpMessage } from "../eventData";
+import { EventData } from "../eventData";
 import * as Constants from "../util/constants";
-import Lease from "./lease";
+import BlobLease from "./blobLease";
 
 export interface CheckpointInfo {
   partitionId: string;
   owner: string;
   token: string;
   epoch: number;
-  offset: string;
+  offset?: string;
   sequenceNumber: number;
 }
-
+/**
+ * Describes the Partition Context.
+ * @class PartitionContext
+ */
 export default class PartitionContext {
   partitionId: string;
-  lease: Lease;
+  lease: BlobLease;
   private _token: string;
   private _owner: string;
   private _checkpointDetails: CheckpointInfo;
 
-  constructor(partitionId: string, owner: string, lease: Lease) {
+  /**
+   * Creates a new PartitionContext.
+   * @param {string} partitionId The eventhub partition id.
+   * @param {string} owner The name of the owner.
+   * @param {BlobLease} lease The lease object.
+   */
+  constructor(partitionId: string, owner: string, lease: BlobLease) {
     this.partitionId = partitionId;
     this._owner = owner;
     this.lease = lease;
@@ -34,7 +43,6 @@ export default class PartitionContext {
       owner: this._owner,
       token: this._token,
       epoch: 1,
-      offset: "",
       sequenceNumber: 0
     };
   }
@@ -42,8 +50,8 @@ export default class PartitionContext {
   /**
    * Stores the checkpoint data into the appropriate blob, assuming the lease is held (otherwise, rejects).
    *
-   * The checkpoint data is compatible with the .NET EventProcessorHost, and is structured as a JSON payload (example):
-   * {"PartitionId":"0","Owner":"ephtest","Token":"48e209e3-55f0-41b8-a8dd-d9c09ff6c35a","Epoch":1,"Offset":"","SequenceNumber":0}
+   * The checkpoint data is structured as a JSON payload (example):
+   * {"partitionId":"0","owner":"ephtest","token":"48e209e3-55f0-41b8-a8dd-d9c09ff6c35a","epoch":1,"offset":"","sequenceNumber":0}
    *
    * @method checkpoint
    *
@@ -51,15 +59,17 @@ export default class PartitionContext {
    */
   async checkpoint(): Promise<CheckpointInfo> {
     try {
-      if (this.lease.isHeld()) {
+      if (this.lease.isHeld) {
         this._checkpointDetails.owner = this._owner; // We"re setting it, ensure we"re the owner.
-        await this.lease.updateContents(JSON.stringify(this._checkpointDetails));
+        await this.lease.updateContent(JSON.stringify(this._checkpointDetails));
         return this._checkpointDetails;
       } else {
-        return Promise.reject(new Error("Lease not held"));
+        return Promise.reject(new Error("Lease not held."));
       }
     } catch (err) {
-      return Promise.reject(err);
+      let msg = `An error occurred while storing the checkpoint data in the blob: ${JSON.stringify(err)}.`;
+      debug(msg);
+      return Promise.reject(msg);
     }
   }
 
@@ -75,21 +85,28 @@ export default class PartitionContext {
     this._checkpointDetails = payload;
   }
 
+  /**
+   * Updates the checkpoint data from the owned lease.
+   * @return {Promise<CheckpointInfo>}
+   */
   async updateCheckpointDataFromLease(): Promise<CheckpointInfo> {
     try {
-      const contents: string = await this.lease.getContents();
+      const contents: string = await this.lease.getContent();
       if (contents) {
-        debug("Lease " + this.lease.fullUri + " contents: " + contents);
+        debug("Lease '%s' with content: %s", this.lease.fullUri, contents);
         try {
           const payload = JSON.parse(contents);
           this.setCheckpointDataFromPayload(payload);
         } catch (err) {
+          debug("Invalid payload '%s': %O", contents, err);
           return Promise.reject("Invalid payload '" + contents + "': " + err);
         }
       }
       return this._checkpointDetails;
     } catch (err) {
-      return Promise.reject(err);
+      let msg = `An error occurred while updating the checkpoint data from lease: ${JSON.stringify(err)}.`;
+      debug(msg);
+      return Promise.reject(msg);
     }
   }
 
@@ -98,14 +115,15 @@ export default class PartitionContext {
    *   "x-opt-sequence-number":6,"x-opt-offset":"480","x-opt-enqueued-time":"2015-12-18T17:26:49.331Z"
    *
    * @method updateCheckpointDataFromMessage
-   * @param {*} message
+   * @param {EventData} eventData The event data received from the EventHubReceiver.
    */
-  updateCheckpointDataFromMessage(message: AmqpMessage): void {
-    if (message && message.message_annotations) {
-      const anno = message.message_annotations;
+  updateCheckpointDataFromEventData(eventData: EventData): void {
+    if (eventData && eventData.annotations) {
+      const anno = eventData.annotations;
       if (anno[Constants.enqueuedTime]) this._checkpointDetails.epoch = anno[Constants.enqueuedTime] as number;
       if (anno[Constants.offset]) this._checkpointDetails.offset = anno[Constants.offset] as string;
       if (anno[Constants.sequenceNumber]) this._checkpointDetails.sequenceNumber = anno[Constants.sequenceNumber] as number;
+      debug("Updated checkpoint data from event data is: %o", this._checkpointDetails);
     }
   }
 }

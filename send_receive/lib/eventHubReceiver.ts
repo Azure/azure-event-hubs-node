@@ -39,6 +39,13 @@ export interface ReceiverRuntimeInfo {
   retrievalTime?: Date;
 }
 
+/**
+ * Describes the event handler signtaure for the "message" event.
+ */
+export interface OnMessage {
+  (event: "message", handler: (eventData: EventData) => void): void;
+}
+
 export class EventHubReceiver extends EventEmitter {
   address: string;
   client: EventHubClient;
@@ -96,7 +103,7 @@ export class EventHubReceiver extends EventEmitter {
       this.emit(Constants.message, evData);
     };
     const onError = (context: rheaPromise.Context) => {
-      this.emit(Constants.receiverError, errors.translate(context.receiver.error));
+      this.emit(Constants.error, errors.translate(context.receiver.error));
     };
 
     this.on("newListener", (event) => {

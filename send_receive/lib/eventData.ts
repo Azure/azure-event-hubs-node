@@ -14,13 +14,14 @@ export interface EventData {
   partitionKey?: string | null;
   offset?: string;
   sequenceNumber?: number;
-  annotations?: Dictionary<any>;
+  annotations?: AmqpMessageAnnotations;
   properties?: Dictionary<any>;
   applicationProperties?: Dictionary<any>;
   lastSequenceNumber?: number;
   lastEnqueuedOffset?: string;
   lastEnqueuedTime?: Date;
   retrievalTime?: Date;
+  _raw_amqp_mesage?: AmqpMessage;
 }
 
 export interface AmqpMessageAnnotations {
@@ -52,7 +53,8 @@ export namespace EventData {
   export function fromAmqpMessage(msg: AmqpMessage): EventData {
     // TODO: Look at how other sdks are encoding their payloads and copy them. This will ensure consistency across all the sdks.
     let data: EventData = {
-      body: msg.body
+      body: msg.body,
+      _raw_amqp_mesage: msg
     };
     if (msg.message_annotations) {
       data.annotations = msg.message_annotations;

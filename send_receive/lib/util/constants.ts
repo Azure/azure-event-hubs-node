@@ -8,6 +8,7 @@ export const offset = "x-opt-offset";
 export const enqueuedTimeAnnotation = "amqp.annotation.x-opt-enqueued-time";
 export const offsetAnnotation = "amqp.annotation.x-opt-offset";
 export const message = "message";
+export const error = "error";
 export const statusCode = "status-code";
 export const statusDescription = "status-description";
 export const errorCondition = "error-condition";
@@ -34,4 +35,4 @@ export const connectionError = "connection_error";
 export const defaultOperationTimeoutInSeconds = 60;
 export const managementRequestKey = "managementRequest";
 export const negotiateCbsKey = "negotiateCbs";
-
+export const ensureContainerAndBlob = "ensureContainerAndBlob";
