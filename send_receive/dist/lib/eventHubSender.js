@@ -2,13 +2,14 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License. See License.txt in the project root for license information.
 Object.defineProperty(exports, "__esModule", { value: true });
-const events_1 = require("events");
-const Constants = require("./util/constants");
-const _1 = require(".");
-const cbs = require("./cbs");
-const rheaPromise = require("./rhea-promise");
 const rhea = require("rhea");
 const debugModule = require("debug");
+const cbs = require("./cbs");
+const errors = require("./errors");
+const rheaPromise = require("./rhea-promise");
+const Constants = require("./util/constants");
+const events_1 = require("events");
+const _1 = require(".");
 const debug = debugModule("azure:event-hubs:sender");
 /**
  * Instantiates a new sender from the AMQP `Sender`. Used by `EventHubClient`.
@@ -27,7 +28,7 @@ class EventHubSender extends events_1.EventEmitter {
             this.address += `/Partitions/${this.partitionId}`;
         }
         const onError = (context) => {
-            this.emit(Constants.senderError, context.sender.error);
+            this.emit(Constants.error, errors.translate(context.sender.error));
         };
         this.on("newListener", (event) => {
             if (event === Constants.senderError) {

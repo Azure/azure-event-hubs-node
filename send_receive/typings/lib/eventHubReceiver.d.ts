@@ -28,6 +28,12 @@ export interface ReceiverRuntimeInfo {
      */
     retrievalTime?: Date;
 }
+/**
+ * Describes the event handler signtaure for the "message" event.
+ */
+export interface OnMessage {
+    (event: "message", handler: (eventData: EventData) => void): void;
+}
 export declare class EventHubReceiver extends EventEmitter {
     address: string;
     client: EventHubClient;

@@ -8,7 +8,8 @@ var EventData;
     function fromAmqpMessage(msg) {
         // TODO: Look at how other sdks are encoding their payloads and copy them. This will ensure consistency across all the sdks.
         let data = {
-            body: msg.body
+            body: msg.body,
+            _raw_amqp_mesage: msg
         };
         if (msg.message_annotations) {
             data.annotations = msg.message_annotations;

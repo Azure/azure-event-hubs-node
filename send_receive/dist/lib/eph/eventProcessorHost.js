@@ -2,29 +2,101 @@
 // Copyright (c) Microsoft. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 Object.defineProperty(exports, "__esModule", { value: true });
+const uuid = require("uuid/v4");
+const debugModule = require("debug");
+const blobLeaseManager_1 = require("./blobLeaseManager");
+const blobLease_1 = require("./blobLease");
+const partitionContext_1 = require("./partitionContext");
 const eventHubClient_1 = require("../eventHubClient");
 const events_1 = require("events");
-const debugModule = require("debug");
 const errors_1 = require("../errors");
-const partitionContext_1 = require("./partitionContext");
-const leaseManager_1 = require("./leaseManager");
-const lease_1 = require("./lease");
 const debug = debugModule("azure:event-hubs:processor:host");
+/**
+ * Describes the Event Processor Host to process events from an EventHub.
+ * @class EventProcessorHost
+ */
 class EventProcessorHost extends events_1.EventEmitter {
-    constructor(name, consumerGroup, storageConnectionString, eventHubClient) {
+    /**
+     * Creates a new host to process events from an Event Hub.
+     * @param {string} hostName Name of the processor host. MUST BE UNIQUE. Strongly recommend including a Guid to ensure uniqueness.
+     * @param {string} consumerGroup The name of the consumer group within the Event Hub.
+     * @param {string} storageConnectionString Connection string to Azure Storage account used for leases and checkpointing. Example DefaultEndpointsProtocol=https;AccountName=<account-name>;AccountKey=<account-key>;EndpointSuffix=core.windows.net
+     * @param {EventHubClient} eventHubClient The EventHub client
+     * @param {LeaseManager} [LeaseManager] A manager to manage leases. Default: BlobLeaseManager.
+     */
+    constructor(hostName, consumerGroup, storageConnectionString, eventHubClient, leaseManager) {
         super();
-        function ensure(paramName, param) {
+        function ensure(paramName, param, type) {
             if (!param)
-                throw new errors_1.ArgumentError(paramName + " cannot be null or missing");
+                throw new errors_1.ArgumentError(`${paramName} cannot be null or undefined.`);
+            if (param) {
+                if (typeof param !== type) {
+                    throw new errors_1.ArgumentError(`${paramName} must be of type ${type}.`);
+                }
+            }
         }
-        ensure("name", name);
-        ensure("consumerGroup", consumerGroup);
-        ensure("storageConnectionString", storageConnectionString);
-        ensure("eventHubClient", eventHubClient);
-        this._hostName = name;
+        ensure("name", hostName, "string");
+        ensure("consumerGroup", consumerGroup, "string");
+        ensure("storageConnectionString", storageConnectionString, "string");
+        ensure("eventHubClient", eventHubClient, "object");
+        this._hostName = hostName;
         this._consumerGroup = consumerGroup;
         this._eventHubClient = eventHubClient;
         this._storageConnectionString = storageConnectionString;
+        this._leaseManager = leaseManager || new blobLeaseManager_1.default();
+        this._contextByPartition = {};
+        this._receiverByPartition = {};
+    }
+    /**
+     * Provides the host name for the Event processor host.
+     */
+    get hostName() {
+        return this._hostName;
+    }
+    /**
+     * Provides the consumer group name for the Event processor host.
+     */
+    get consumerGroup() {
+        return this._consumerGroup;
+    }
+    /**
+     * Provides the eventhub runtime information.
+     * @method getHubRuntimeInformation
+     * @returns {Promise<EventHubRuntimeInformation>}
+     */
+    async getHubRuntimeInformation() {
+        try {
+            return await this._eventHubClient.getHubRuntimeInformation();
+        }
+        catch (err) {
+            return Promise.reject(err);
+        }
+    }
+    /**
+     * Provides information about the specified partition.
+     * @method getPartitionInformation
+     * @param {(string|number)} partitionId Partition ID for which partition information is required.
+     */
+    async getPartitionInformation(partitionId) {
+        try {
+            return await this._eventHubClient.getPartitionInformation(partitionId);
+        }
+        catch (err) {
+            return Promise.reject(err);
+        }
+    }
+    /**
+     * Provides an array of partitionIds.
+     * @method getPartitionIds
+     * @returns {Promise<string[]>}
+     */
+    async getPartitionIds() {
+        try {
+            return this._eventHubClient.getPartitionIds();
+        }
+        catch (err) {
+            return Promise.reject(err);
+        }
     }
     /**
      * Starts the event processor host, fetching the list of partitions, (optionally) filtering them, and attempting
@@ -35,22 +107,22 @@ class EventProcessorHost extends events_1.EventEmitter {
      * @param {function} [partitionFilter]  Predicate that takes a partition ID and return true/false for whether we should
      *  attempt to grab the lease and watch it. If not provided, all partitions will be tried.
      *
-     * @return {Promise}
+     * @return {Promise<EventProcessorHost>}
      */
     async start(partitionFilter) {
         try {
             this._contextByPartition = {};
             this._receiverByPartition = {};
-            this._leaseManager = new leaseManager_1.default();
-            this._leaseManager.on(leaseManager_1.default.acquired, (lease) => {
+            this._leaseManager.reset();
+            this._leaseManager.on(blobLeaseManager_1.default.acquired, (lease) => {
                 debug("Acquired lease on " + lease.partitionId);
                 this._attachReceiver(lease.partitionId);
             });
-            this._leaseManager.on(leaseManager_1.default.lost, (lease) => {
+            this._leaseManager.on(blobLeaseManager_1.default.lost, (lease) => {
                 debug("Lost lease on " + lease.partitionId);
                 this._detachReceiver(lease.partitionId, "Lease lost");
             });
-            this._leaseManager.on(leaseManager_1.default.released, (lease) => {
+            this._leaseManager.on(blobLeaseManager_1.default.released, (lease) => {
                 debug("Released lease on " + lease.partitionId);
                 this._detachReceiver(lease.partitionId, "Lease released");
             });
@@ -63,7 +135,7 @@ class EventProcessorHost extends events_1.EventEmitter {
                 }
                 debug("Managing lease for partition " + id);
                 const blobPath = this._consumerGroup + "/" + id;
-                const lease = new lease_1.default(this._storageConnectionString, this._hostName, blobPath);
+                const lease = new blobLease_1.default(this._storageConnectionString, this._hostName, blobPath);
                 lease.partitionId = id;
                 this._contextByPartition[id] = new partitionContext_1.default(id, this._hostName, lease);
                 this._leaseManager.manageLease(lease);
@@ -74,6 +146,10 @@ class EventProcessorHost extends events_1.EventEmitter {
         }
         return this;
     }
+    /**
+     * Stops the EventProcessorHost from processing messages.
+     * @return {Promise<void>}
+     */
     async stop() {
         const unmanage = (l) => { return this._leaseManager.unmanageLease(l); };
         let releases = [];
@@ -82,12 +158,10 @@ class EventProcessorHost extends events_1.EventEmitter {
                 continue;
             const id = partitionId;
             const context = this._contextByPartition[id];
-            await this._detachReceiver(id);
-            unmanage.bind(undefined, context.lease);
-            releases.push();
+            releases.push(this._detachReceiver(id).then(unmanage.bind(undefined, context.lease)));
         }
         return Promise.all(releases).then(() => {
-            this._leaseManager = undefined;
+            this._leaseManager.reset();
             this._contextByPartition = {};
         });
     }
@@ -100,13 +174,15 @@ class EventProcessorHost extends events_1.EventEmitter {
         if (checkpoint && checkpoint.offset) {
             filterOptions = { startAfterOffset: checkpoint.offset };
         }
-        const receiver = await this._eventHubClient.createReceiver(partitionId, { consumerGroup: this._consumerGroup, filter: filterOptions });
-        debug(`[${this._eventHubClient.connection.options.id}] Attaching receiver "${receiver.name}" for partition "${partitionId}" with offset: ${(checkpoint ? checkpoint.offset : "None")}`);
+        const rcvrOptions = { consumerGroup: this._consumerGroup, filter: filterOptions };
+        const receiver = await this._eventHubClient.createReceiver(partitionId, rcvrOptions);
+        debug(`[${this._eventHubClient.connection.options.id}] Attaching receiver "${receiver.name}" ` +
+            `for partition "${partitionId}" with offset: ${(checkpoint ? checkpoint.offset : "None")}`);
         this.emit(EventProcessorHost.opened, context);
         this._receiverByPartition[partitionId] = receiver;
-        receiver.on("message", (message) => {
-            context.updateCheckpointDataFromMessage(message);
-            this.emit(EventProcessorHost.message, context, message);
+        receiver.on("message", (eventData) => {
+            context.updateCheckpointDataFromEventData(eventData);
+            this.emit(EventProcessorHost.message, context, eventData);
         });
         return receiver;
     }
@@ -120,8 +196,47 @@ class EventProcessorHost extends events_1.EventEmitter {
             this.emit(EventProcessorHost.closed, context, reason);
         }
     }
-    static createFromConnectionString(name, consumerGroup, storageConnectionString, eventHubConnectionString, eventHubPath) {
-        return new EventProcessorHost(name, consumerGroup, storageConnectionString, eventHubClient_1.EventHubClient.createFromConnectionString(eventHubConnectionString, eventHubPath));
+    /**
+     * Convenience method for generating unique host name.
+     * @param {string} [prefix] String to use as the beginning of the name. Default value: "js-host".
+     * @return {string} A unique host name
+     */
+    static createHostName(prefix) {
+        if (!prefix)
+            prefix = "js-host";
+        return `${prefix}-${uuid()}`;
+    }
+    /**
+     * Creates a new host to process events from an Event Hub.
+     * @param {string} hostName Name of the processor host. MUST BE UNIQUE. Strongly recommend including a Guid to ensure uniqueness.
+     * @param {string} consumerGroup The name of the consumer group within the Event Hub.
+     * @param {string} storageConnectionString Connection string to Azure Storage account used for leases and checkpointing.
+     * Example DefaultEndpointsProtocol=https;AccountName=<account-name>;AccountKey=<account-key>;EndpointSuffix=core.windows.net
+     * @param {string} eventHubConnectionString Connection string for the Event Hub to receive from.
+     * Example: 'Endpoint=sb://my-servicebus-namespace.servicebus.windows.net/;SharedAccessKeyName=my-SA-name;SharedAccessKey=my-SA-key'
+     * @param {string} [eventHubPath] The name of the EventHub. This is optional if the eventHubConnectionString contains ENTITY_PATH=hub-name.
+     * @param {TokenProvider} [tokenProvider] An instance of the token provider that provides the token for authentication.
+     * Default value: SasTokenProvider.
+     * @param {LeaseManager} [LeaseManager] A manager to manage leases. Default: BlobLeaseManager.
+     */
+    static createFromConnectionString(hostName, consumerGroup, storageConnectionString, eventHubConnectionString, eventHubPath, tokenProvider, leaseManager) {
+        return new EventProcessorHost(hostName, consumerGroup, storageConnectionString, eventHubClient_1.EventHubClient.createFromConnectionString(eventHubConnectionString, eventHubPath, tokenProvider), leaseManager);
+    }
+    /**
+     * Creates a new host to process events from an Event Hub.
+     * @method
+     * @param {string} hostName Name of the processor host. MUST BE UNIQUE. Strongly recommend including a Guid to ensure uniqueness.
+     * @param {string} consumerGroup The name of the consumer group within the Event Hub.
+     * @param {string} storageConnectionString Connection string to Azure Storage account used for leases and checkpointing.
+     * Example DefaultEndpointsProtocol=https;AccountName=<account-name>;AccountKey=<account-key>;EndpointSuffix=core.windows.net
+     * @param {string} namespace Fully qualified domain name for Event Hubs. Example: "{your-sb-namespace}.servicebus.windows.net"
+     * @param {string} eventHubPath The name of the EventHub. This is optional if the eventHubConnectionString contains ENTITY_PATH=hub-name.
+     * @param {TokenCredentials} credentials - The AAD Token credentials. It can be one of the following:
+     * ApplicationTokenCredentials | UserTokenCredentials | DeviceTokenCredentials | MSITokenCredentials.
+     * @param {LeaseManager} [LeaseManager] A manager to manage leases. Default: BlobLeaseManager.
+     */
+    static createFromAadTokenCredentials(hostName, consumerGroup, storageConnectionString, namespace, eventHubPath, credentials, leaseManager) {
+        return new EventProcessorHost(hostName, consumerGroup, storageConnectionString, eventHubClient_1.EventHubClient.createFromAadTokenCredentials(namespace, eventHubPath, credentials), leaseManager);
     }
 }
 /**
@@ -135,7 +250,7 @@ EventProcessorHost.opened = "ephost:opened";
 EventProcessorHost.closed = "ephost:closed";
 /**
  * Message: Triggered whenever a message comes in on a given partition.
- * Passed the PartitionContext and a message.
+ * Passed the PartitionContext and EventData.
  */
 EventProcessorHost.message = "ephost:message";
 exports.default = EventProcessorHost;

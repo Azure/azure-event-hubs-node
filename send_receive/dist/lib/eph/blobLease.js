@@ -2,10 +2,12 @@
 // Copyright (c) Microsoft. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 Object.defineProperty(exports, "__esModule", { value: true });
-const azure_storage_1 = require("azure-storage");
 const debugModule = require("debug");
+const azure_storage_1 = require("azure-storage");
+const Constants = require("../util/constants");
+const utils_1 = require("../util/utils");
 const debug = debugModule("cerulean:lease");
-class Lease {
+class BlobLease {
     constructor(storageConnectionString, container, blob) {
         this._isHeld = false;
         this._containerAndBlobExist = false;
@@ -18,6 +20,9 @@ class Lease {
         this._containerAndBlobExist = false;
         debug(`Full lease path: ${this.fullUri}`);
     }
+    /**
+     * Ensures that the container and blob exist.
+     */
     async ensureContainerAndBlobExist() {
         try {
             if (!this._containerAndBlobExist) {
@@ -27,17 +32,15 @@ class Lease {
             }
         }
         catch (err) {
-            return Promise.reject(err);
+            let msg = `An error occurred while ensuring that the container and blob exists. It is: \n${JSON.stringify(err)}`;
+            return Promise.reject(msg);
         }
     }
     /**
      * Returns the best-guess as to whether the lease is still held. May not be accurate if lease has expired.
-     *
-     * @method isHeld
-     *
      * @returns {boolean}
      */
-    isHeld() {
+    get isHeld() {
         return this._isHeld;
     }
     /**
@@ -50,12 +53,12 @@ class Lease {
      *
      * @param isItHeld
      */
-    setIsHeld(isItHeld) {
+    set isHeld(isItHeld) {
         this._isHeld = isItHeld;
     }
     async acquire(options) {
         try {
-            await this.ensureContainerAndBlobExist();
+            await utils_1.defaultLock.acquire(Constants.ensureContainerAndBlob, () => { return this.ensureContainerAndBlobExist(); });
             return new Promise((resolve, reject) => {
                 this.blobService.acquireLease(this.container, this.blob, options, (error, result, response) => {
                     if (error) {
@@ -77,7 +80,7 @@ class Lease {
     renew(options) {
         return new Promise((resolve, reject) => {
             if (!this.leaseId) {
-                reject(new Error(Lease.notHeldError));
+                reject(new Error(BlobLease.notHeldError));
             }
             else {
                 this.blobService.renewLease(this.container, this.blob, this.leaseId, options, (error, result, response) => {
@@ -96,7 +99,7 @@ class Lease {
     release(options) {
         return new Promise((resolve, reject) => {
             if (!this.leaseId) {
-                reject(new Error(Lease.notHeldError));
+                reject(new Error(BlobLease.notHeldError));
             }
             else {
                 if (!options)
@@ -115,10 +118,15 @@ class Lease {
             }
         });
     }
-    updateContents(text, options) {
+    /**
+     * Updates content from the Azure Storage Blob.
+     * @param {string} text The text to be written
+     * @param {BlobService.CreateBlobRequestOptions} options The options that can be provided while writing content to the blob.
+     */
+    updateContent(text, options) {
         return new Promise((resolve, reject) => {
             if (!this.leaseId) {
-                reject(new Error(Lease.notHeldError));
+                reject(new Error(BlobLease.notHeldError));
             }
             else {
                 if (!options)
@@ -137,10 +145,14 @@ class Lease {
             }
         });
     }
-    getContents(options) {
+    /**
+     * Gets content from the Azure Storage Blob.
+     * @param {BlobService.GetBlobRequestOptions} options Options to be passed while getting content from the blob.
+     */
+    getContent(options) {
         return new Promise((resolve, reject) => {
             if (!this.leaseId) {
-                reject(new Error(Lease.notHeldError));
+                reject(new Error(BlobLease.notHeldError));
             }
             else {
                 if (!options)
@@ -176,7 +188,7 @@ class Lease {
         const self = this;
         return new Promise((resolve, reject) => {
             // Honestly, there"s no better way to say "hey, make sure this thing exists?"
-            const options = { accessConditions: { DateUnModifiedSince: Lease._beginningOfTime } };
+            const options = { accessConditions: { DateUnModifiedSince: BlobLease._beginningOfTime } };
             self.blobService.createBlockBlobFromText(self.container, self.blob, "", options, (error, result, response) => {
                 if (error) {
                     if (error.statusCode === 412) {
@@ -193,12 +205,19 @@ class Lease {
             });
         });
     }
+    /**
+     * Creates a lease from storage account name and key
+     * @param {string} storageAccount The name of the storage account.
+     * @param {string} storageKey The storage key value.
+     * @param {BlobService.ContainerResult} container The Azure storage blob container.
+     * @param {BlobService.BlobResult} blob The Azure storage blob.
+     */
     static createFromNameAndKey(storageAccount, storageKey, container, blob) {
         const connectionString = `DefaultEndpointsProtocol=https;AccountName=${storageAccount};AccountKey=${storageKey}`;
-        return new Lease(connectionString, container, blob);
+        return new BlobLease(connectionString, container, blob);
     }
 }
-Lease.notHeldError = "Lease not held";
-Lease._beginningOfTime = new Date(1990, 1, 1).toUTCString();
-exports.default = Lease;
-//# sourceMappingURL=lease.js.map
+BlobLease.notHeldError = "Lease not held";
+BlobLease._beginningOfTime = new Date(1990, 1, 1).toUTCString();
+exports.default = BlobLease;
+//# sourceMappingURL=blobLease.js.map

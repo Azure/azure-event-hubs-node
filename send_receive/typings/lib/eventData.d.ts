@@ -7,13 +7,14 @@ export interface EventData {
     partitionKey?: string | null;
     offset?: string;
     sequenceNumber?: number;
-    annotations?: Dictionary<any>;
+    annotations?: AmqpMessageAnnotations;
     properties?: Dictionary<any>;
     applicationProperties?: Dictionary<any>;
     lastSequenceNumber?: number;
     lastEnqueuedOffset?: string;
     lastEnqueuedTime?: Date;
     retrievalTime?: Date;
+    _raw_amqp_mesage?: AmqpMessage;
 }
 export interface AmqpMessageAnnotations {
     "x-opt-partition-key"?: string | null;

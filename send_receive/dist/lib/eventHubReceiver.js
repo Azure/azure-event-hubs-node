@@ -55,7 +55,7 @@ class EventHubReceiver extends events_1.EventEmitter {
             this.emit(Constants.message, evData);
         };
         const onError = (context) => {
-            this.emit(Constants.receiverError, errors.translate(context.receiver.error));
+            this.emit(Constants.error, errors.translate(context.receiver.error));
         };
         this.on("newListener", (event) => {
             if (event === Constants.message) {

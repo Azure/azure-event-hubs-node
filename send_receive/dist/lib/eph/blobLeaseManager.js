@@ -5,30 +5,61 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const events_1 = require("events");
 const debugModule = require("debug");
 const debug = debugModule("cerulean:lease-manager");
-class LeaseManager extends events_1.EventEmitter {
+var LeaseManager;
+(function (LeaseManager) {
+    LeaseManager.acquired = "lease:acquired";
+    LeaseManager.lost = "lease:lost";
+    LeaseManager.released = "lease:released";
+})(LeaseManager = exports.LeaseManager || (exports.LeaseManager = {}));
+/**
+ * Describes the Azure Storage Blob lease manager.
+ * @class BlobLeaseManager
+ * @extends EventEmitter
+ * @implements LeaseManager
+ */
+class BlobLeaseManager extends events_1.EventEmitter {
+    /**
+     * Instantiates a BlobLeaseManager.
+     * @constructor
+     * @param {number} [leaseDurationInSeconds] The lease duration in seconds for which it can be held. Default value: 60.
+     */
     constructor(leaseDurationInSeconds) {
         super();
-        this.leaseDuration = LeaseManager.defaultLeaseDuration;
+        this.leaseDuration = BlobLeaseManager.defaultLeaseDuration;
         this.leases = {};
-        this.leaseDuration = leaseDurationInSeconds || LeaseManager.defaultLeaseDuration;
+        this.leaseDuration = leaseDurationInSeconds || BlobLeaseManager.defaultLeaseDuration;
     }
+    /**
+     * Resets the leases dictionary to an empty object.
+     */
+    reset() {
+        this.leases = {};
+    }
+    /**
+     * Manages the specified blob lease.
+     * @param {BlobLease} lease The lease to be managed.
+     */
     manageLease(lease) {
         this.leases[lease.fullUri] = { lease: lease };
         this._acquire(lease);
     }
+    /**
+     * Unmanages the specified blob lease.
+     * @param {BlobLease} lease The lease to be unmanaged.
+     */
     async unmanageLease(lease) {
         try {
             if (this.leases[lease.fullUri].interval) {
                 this._unmanage(lease);
                 await lease.release();
                 debug("Released " + lease.fullUri);
-                lease.setIsHeld(false);
-                this.emit(LeaseManager.released, lease);
+                lease.isHeld = false;
+                this.emit(BlobLeaseManager.released, lease);
             }
         }
         catch (ignored) {
             debug("Ignoring error when unmanaging lease, as it likely means it was not held: ", ignored);
-            this.emit(LeaseManager.released, lease);
+            this.emit(BlobLeaseManager.released, lease);
         }
     }
     _unmanage(lease) {
@@ -42,11 +73,11 @@ class LeaseManager extends events_1.EventEmitter {
                 try {
                     await lease.acquire({ leaseDuration: this.leaseDuration });
                     debug("Acquired " + lease.fullUri);
-                    lease.setIsHeld(true);
+                    lease.isHeld = true;
                     this._unmanage(lease);
                     this.leases[lease.fullUri].expires = Date.now() + (this.leaseDuration * 1000);
                     this._maintain(lease);
-                    this.emit(LeaseManager.acquired, lease);
+                    this.emit(BlobLeaseManager.acquired, lease);
                 }
                 catch (error) {
                     const msg = `Failed to acquire lease for "${lease.fullUri}": "${error}". Will retry.`;
@@ -75,8 +106,8 @@ class LeaseManager extends events_1.EventEmitter {
                         // We"ll expire before next renewal comes in.
                         // Alert a lease loss, delay a bit, and then queue up a re-acquire.
                         this._unmanage(lease);
-                        this.emit(LeaseManager.lost, lease);
-                        lease.setIsHeld(false);
+                        this.emit(BlobLeaseManager.lost, lease);
+                        lease.isHeld = false;
                         setTimeout(() => {
                             debug(`Lease "${lease.fullUri}" lost. Attempting to re-acquire.`);
                             this._acquire(lease);
@@ -95,10 +126,10 @@ class LeaseManager extends events_1.EventEmitter {
     }
 }
 // Events
-LeaseManager.acquired = "lease:acquired";
-LeaseManager.lost = "lease:lost";
-LeaseManager.released = "lease:released";
+BlobLeaseManager.acquired = "lease:acquired";
+BlobLeaseManager.lost = "lease:lost";
+BlobLeaseManager.released = "lease:released";
 // seconds
-LeaseManager.defaultLeaseDuration = 60;
-exports.default = LeaseManager;
-//# sourceMappingURL=leaseManager.js.map
+BlobLeaseManager.defaultLeaseDuration = 60;
+exports.default = BlobLeaseManager;
+//# sourceMappingURL=blobLeaseManager.js.map

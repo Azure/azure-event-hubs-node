@@ -20,6 +20,7 @@ class EventHubClient {
      * @constructor
      * @param {ConnectionConfig} config - The connection configuration to create the EventHub Client.
      * @param {TokenProvider} [tokenProvider] - The token provider that provides the token for authentication.
+     * Default value: SasTokenProvider.
      */
     constructor(config, tokenProvider) {
         this.userAgent = "/js-event-hubs";
@@ -119,8 +120,13 @@ class EventHubClient {
      * @returns {Promise<Array<string>>}
      */
     async getPartitionIds() {
-        let runtimeInfo = await this.getHubRuntimeInformation();
-        return runtimeInfo.partitionIds;
+        try {
+            let runtimeInfo = await this.getHubRuntimeInformation();
+            return runtimeInfo.partitionIds;
+        }
+        catch (err) {
+            return Promise.reject(err);
+        }
     }
     /**
      * Provides information about the specified partition.
@@ -177,7 +183,7 @@ class EventHubClient {
      * @method createFromConnectionString
      * @param {string} connectionString - Connection string of the form 'Endpoint=sb://my-servicebus-namespace.servicebus.windows.net/;SharedAccessKeyName=my-SA-name;SharedAccessKey=my-SA-key'
      * @param {string} [path] - EventHub path of the form 'my-event-hub-name'
-     * @param {TokenProvider} [tokenProvider] - An instance of the token provider that provides the token for authentication.
+     * @param {TokenProvider} [tokenProvider] - An instance of the token provider that provides the token for authentication. Default value: SasTokenProvider.
      * @returns {EventHubClient} - An instance of the eventhub client.
      */
     static createFromConnectionString(connectionString, path, tokenProvider) {
@@ -195,6 +201,7 @@ class EventHubClient {
      * @method
      * @param {string} host - Fully qualified domain name for Event Hubs. Most likely, {yournamespace}.servicebus.windows.net
      * @param {string} entityPath - EventHub path of the form 'my-event-hub-name'
+     * @param {TokenCredentials} credentials - The AAD Token credentials. It can be one of the following: ApplicationTokenCredentials | UserTokenCredentials | DeviceTokenCredentials | MSITokenCredentials.
      */
     static createFromAadTokenCredentials(host, entityPath, credentials) {
         if (!host || (host && typeof host !== "string")) {
