@@ -21,7 +21,10 @@ export declare const cbsReplyTo = "cbs";
 export declare const operationPutToken = "put-token";
 export declare const aadEventHubsAudience = "https://eventhubs.azure.net/";
 export declare const maxUserAgentLength = 128;
-export declare const packageJsonInfo: any;
+export declare const packageJsonInfo: {
+    name: string;
+    version: string;
+};
 export declare const vendorString = "com.microsoft";
 export declare const attachEpoch: string;
 export declare const enableReceiverRuntimeMetricName: string;

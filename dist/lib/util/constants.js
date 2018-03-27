@@ -25,7 +25,10 @@ exports.cbsReplyTo = "cbs";
 exports.operationPutToken = "put-token";
 exports.aadEventHubsAudience = "https://eventhubs.azure.net/";
 exports.maxUserAgentLength = 128;
-exports.packageJsonInfo = require("../../../package.json");
+exports.packageJsonInfo = {
+    name: "azure-event-hubs-js",
+    version: "0.1.0"
+};
 exports.vendorString = "com.microsoft";
 exports.attachEpoch = `${exports.vendorString}:epoch`;
 exports.enableReceiverRuntimeMetricName = `${exports.vendorString}:enable-receiver-runtime-metric`;
