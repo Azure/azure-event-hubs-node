@@ -9,7 +9,7 @@ import PartitionContext from "./partitionContext";
 import { EventHubClient } from "../eventHubClient";
 import { EventEmitter } from "events";
 import { ArgumentError } from "../errors";
-import { EventHubReceiver, TokenProvider, EventHubRuntimeInformation, EventHubPartitionRuntimeInformation } from "..";
+import { EventHubReceiver, TokenProvider, EventHubRuntimeInformation, EventHubPartitionRuntimeInformation, ReceiveOptions, EventPosition } from "..";
 import { Dictionary, EventData } from "../eventData";
 import { ApplicationTokenCredentials, UserTokenCredentials, DeviceTokenCredentials, MSITokenCredentials } from "ms-rest-azure";
 const debug = debugModule("azure:event-hubs:processor:host");
@@ -219,11 +219,11 @@ export default class EventProcessorHost extends EventEmitter {
     const context = this._contextByPartition![partitionId];
     if (!context) return Promise.reject(new Error("Invalid state - missing context for partition " + partitionId));
     const checkpoint = await context.updateCheckpointDataFromLease();
-    let filterOptions: any;
+    let eventPosition: EventPosition | undefined = undefined;
     if (checkpoint && checkpoint.offset) {
-      filterOptions = { startAfterOffset: checkpoint.offset };
+      eventPosition = EventPosition.fromOffset(checkpoint.offset);
     }
-    const rcvrOptions = { consumerGroup: this._consumerGroup, filter: filterOptions };
+    const rcvrOptions: ReceiveOptions = { consumerGroup: this._consumerGroup, eventPosition: eventPosition };
     const receiver = await this._eventHubClient.createReceiver(partitionId, rcvrOptions);
     debug(`[${this._eventHubClient.connection.options.id}] Attaching receiver "${receiver.name}" ` +
       `for partition "${partitionId}" with offset: ${(checkpoint ? checkpoint.offset : "None")}`);

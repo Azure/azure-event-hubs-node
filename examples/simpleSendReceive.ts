@@ -1,4 +1,4 @@
-import { EventHubClient } from "../lib";
+import { EventHubClient, EventPosition } from "../lib";
 
 const connectionString = "SB_CONNECTION_STRING";
 const entityPath = "ENTITY_PATH";
@@ -13,7 +13,7 @@ async function main(): Promise<void> {
   console.log(">>>> Hub: \n", hub);
   for (let i = 0; i < ids.length; i++) {
     console.log("***********Creating receiver %d", i);
-    const receiver = await client.createReceiver(ids[i], { filter: { startAfterTime: Date.now() } });
+    const receiver = await client.createReceiver(ids[i], { eventPosition: EventPosition.fromEnqueuedTime(Date.now()) });
     console.log("***********Created receiver %d", i);
     receiver.on("message", async (eventData: any) => {
       console.log(">>> EventDataObject: ", eventData);

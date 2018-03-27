@@ -5,8 +5,9 @@ export const partitionKey = "x-opt-partition-key";
 export const sequenceNumber = "x-opt-sequence-number";
 export const enqueuedTime = "x-opt-enqueued-time";
 export const offset = "x-opt-offset";
-export const enqueuedTimeAnnotation = "amqp.annotation.x-opt-enqueued-time";
-export const offsetAnnotation = "amqp.annotation.x-opt-offset";
+export const enqueuedTimeAnnotation = `amqp.annotation.${enqueuedTime}`;
+export const offsetAnnotation = `amqp.annotation.${offset}`;
+export const sequenceNumberAnnotation = `amqp.annotation.${sequenceNumber}`;
 export const message = "message";
 export const error = "error";
 export const statusCode = "status-code";
@@ -24,10 +25,6 @@ export const cbsReplyTo = "cbs";
 export const operationPutToken = "put-token";
 export const aadEventHubsAudience = "https://eventhubs.azure.net/";
 export const maxUserAgentLength = 128;
-export const packageJsonInfo = {
-  name: "azure-event-hubs-js",
-  version: "0.1.0"
-};
 export const vendorString = "com.microsoft";
 export const attachEpoch = `${vendorString}:epoch`;
 export const enableReceiverRuntimeMetricName = `${vendorString}:enable-receiver-runtime-metric`;
@@ -39,3 +36,7 @@ export const defaultOperationTimeoutInSeconds = 60;
 export const managementRequestKey = "managementRequest";
 export const negotiateCbsKey = "negotiateCbs";
 export const ensureContainerAndBlob = "ensureContainerAndBlob";
+export const packageJsonInfo = {
+  name: "azure-event-hubs-js",
+  version: "0.1.0"
+};
