@@ -1,8 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const lib_1 = require("../lib");
-const connectionString = "SB_CONNECTION_STRING";
-const entityPath = "ENTITY_PATH";
+const connectionString = "EVENTHUB_CONNECTION_STRING";
+const entityPath = "EVENTHUB_NAME";
 const str = process.env[connectionString] || "";
 const path = process.env[entityPath] || "";
 const storage = "STORAGE_CONNECTION_STRING";
@@ -13,7 +13,7 @@ let ehc = lib_1.EventHubClient.createFromConnectionString(str, path);
 async function main() {
     try {
         const ids = await ehc.getPartitionIds();
-        // const sender = await ehc.createSender();
+        const sender = await ehc.createSender();
         ids.forEach((id) => {
             partitions[id] = false;
         });
@@ -43,7 +43,7 @@ async function main() {
                     allSet = false;
             }
             if (allSet) {
-                // sender.send({ body: "Hey there!!" });
+                sender.send({ body: "Hey there!!" });
             }
         });
         await host.start();

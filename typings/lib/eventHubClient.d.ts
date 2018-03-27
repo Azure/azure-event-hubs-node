@@ -30,12 +30,24 @@ export interface ReceiveOptions {
      */
     enableReceiverRuntimeMetric?: boolean;
 }
+/**
+ * @class EventHubClient
+ * Describes the EventHub client.
+ */
 export declare class EventHubClient {
     config: ConnectionConfig;
     tokenProvider: TokenProvider;
     connection?: any;
+    connectionId?: string;
     userAgent: string;
-    private managementClient;
+    receivers: {
+        [x: string]: EventHubReceiver;
+    };
+    senders: {
+        [x: string]: EventHubSender;
+    };
+    private _managementClient;
+    private _cbsClient;
     /**
      * Instantiate a client pointing to the Event Hub given by this configuration.
      *
@@ -55,16 +67,16 @@ export declare class EventHubClient {
     /**
      * Creates a sender to the given event hub, and optionally to a given partition.
      * @method createSender
-     * @param {(string|number)} [partitionId] Partition ID to which it will send messages.
+     * @param {(string|number)} [partitionId] Partition ID to which it will send event data.
      * @returns {Promise<EventHubSender>}
      */
     createSender(partitionId?: string | number): Promise<EventHubSender>;
     /**
-     * Instantiate a new receiver from the AMQP `Receiver`. Used by `EventHubClient`.
+     * Creates a new receiver that will receive event data from the EventHub.
      *
      * @constructor
      * @param {EventHubClient} client                            The EventHub client.
-     * @param {string} partitionId                    Partition ID from which to receive.
+     * @param {string|number} partitionId                    Partition ID from which to receive.
      * @param {ReceiveOptions} [options]                         Options for how you'd like to connect.
      * @param {string} [options.consumerGroup]                   Consumer group from which to receive.
      * @param {number} [options.prefetchcount]                   The upper limit of events this receiver will
@@ -80,7 +92,7 @@ export declare class EventHubClient {
      * @param {string} options.filter.customFilter               If you want more fine-grained control of the filtering.
      *      See https://github.com/Azure/amqpnetlite/wiki/Azure%20Service%20Bus%20Event%20Hubs for details.
      */
-    createReceiver(partitionId: string, options?: ReceiveOptions): Promise<EventHubReceiver>;
+    createReceiver(partitionId: string | number, options?: ReceiveOptions): Promise<EventHubReceiver>;
     /**
      * Provides the eventhub runtime information.
      * @method getHubRuntimeInformation

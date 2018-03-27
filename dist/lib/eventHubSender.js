@@ -4,7 +4,6 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const rhea = require("rhea");
 const debugModule = require("debug");
-const cbs = require("./cbs");
 const errors = require("./errors");
 const rheaPromise = require("./rhea-promise");
 const Constants = require("./util/constants");
@@ -19,6 +18,12 @@ const debug = debugModule("azure:event-hubs:sender");
  * @constructor
  */
 class EventHubSender extends events_1.EventEmitter {
+    /**
+     * Creates a new EventHubSender instance.
+     * @constructor
+     * @param {EventHubClient} client The EventHub client.
+     * @param {string|number} [partitionId] The EventHub partition id to which the sender wants to send the event data.
+     */
     constructor(client, partitionId) {
         super();
         this.client = client;
@@ -27,6 +32,7 @@ class EventHubSender extends events_1.EventEmitter {
         if (this.partitionId !== null && this.partitionId !== undefined) {
             this.address += `/Partitions/${this.partitionId}`;
         }
+        this.audience = `${this.client.config.endpoint}${this.address}`;
         const onError = (context) => {
             this.emit(Constants.error, errors.translate(context.sender.error));
         };
@@ -46,15 +52,11 @@ class EventHubSender extends events_1.EventEmitter {
         });
     }
     /**
-     * Negotiates the cbs claim and initializes the sender session on the connection.
+     * Initializes the sender session on the connection.
      * @returns {Promoise<void>}
      */
     async init() {
         try {
-            let audience = `${this.client.config.endpoint}${this.address}`;
-            const tokenObject = await this.client.tokenProvider.getToken(audience);
-            debug(`[${this.client.connection.options.id}] EH Sender: calling negotiateClaim for audience "${audience}"`);
-            await cbs.negotiateClaim(audience, this.client.connection, tokenObject);
             if (!this._session && !this._sender) {
                 this._session = await rheaPromise.createSession(this.client.connection);
                 let options = {
@@ -156,6 +158,8 @@ class EventHubSender extends events_1.EventEmitter {
         try {
             await this._sender.detach();
             this.removeAllListeners();
+            delete this.client.senders[this.name];
+            debug(`Deleted the sender "${this.name}" from the client cache.`);
             this._sender = undefined;
             this._session = undefined;
             clearTimeout(this._tokenRenewalTimer);

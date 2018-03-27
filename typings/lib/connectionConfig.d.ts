@@ -31,4 +31,9 @@ export declare namespace ConnectionConfig {
      * @param {string} [path]           - The name/path of the entity (hub name) to which the connection needs to happen
      */
     function create(connectionString: string, path?: string): ConnectionConfig;
+    /**
+     * Validates the properties of connection config.
+     * @param {ConnectionConfig} config The connection config to be validated.
+     */
+    function validate(config: ConnectionConfig): void;
 }

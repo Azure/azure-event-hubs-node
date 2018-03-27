@@ -34,19 +34,69 @@ export interface ReceiverRuntimeInfo {
 export interface OnMessage {
     (event: "message", handler: (eventData: EventData) => void): void;
 }
+/**
+ * Describes the EventHubReceiver that will receive event data from EventHub.
+ * @class EventHubReceiver
+ */
 export declare class EventHubReceiver extends EventEmitter {
-    address: string;
-    client: EventHubClient;
-    consumerGroup: string;
-    partitionId: string;
-    runtimeInfo: ReceiverRuntimeInfo;
-    epoch?: number;
+    /**
+     * @property {string} [name] The unique EventHub Receiver name (mostly a guid).
+     */
     name?: string;
+    /**
+     * @property {string} address The EventHub Receiver address.
+     */
+    address: string;
+    /**
+     * @property {EventHubClient} client The EventHub client to which the receiver belongs to.
+     */
+    client: EventHubClient;
+    /**
+     * @property {string} audience The EventHub Receiver token audience.
+     */
+    audience: string;
+    /**
+     * @property {string} consumerGroup The EventHub consumer group from which the receiver will receive messages. (Default: "default").
+     */
+    consumerGroup: string;
+    /**
+     * @property {string | number} partitionId The EentHub partitionId from which the receiver will receive messages.
+     */
+    partitionId: string | number;
+    /**
+     * @property {ReceiverRuntimeInfo} runtimeInfo The receiver runtime info.
+     */
+    runtimeInfo: ReceiverRuntimeInfo;
+    /**
+     * @property {number} [epoch] The Receiver epoch.
+     */
+    epoch?: number;
+    /**
+     * @property {ReceiveOptions} [options] Optional properties that can be set while creating the EventHubReceiver.
+     */
     options?: ReceiveOptions;
+    /**
+     * @property {number} [prefetchCount] The number of messages that the receiver can fetch/receive initially. Defaults to 500.
+     */
     prefetchCount?: number;
+    /**
+     * @property {boolean} receiverRuntimeMetricEnabled Indicates whether receiver runtime metric is enabled. Default: false.
+     */
     receiverRuntimeMetricEnabled: boolean;
-    private _receiver;
-    private _session;
+    /**
+     * @property {any} [_receiver] The AMQP receiver link.
+     * @private
+     */
+    private _receiver?;
+    /**
+     * @property {any} [_session] The AMQP receiver session.
+     * @private
+     */
+    private _session?;
+    /**
+     * @property {NodeJS.Timer} _tokenRenewalTimer The token renewal timer that keeps track of when the EventHub Sender is due for token renewal.
+     * @private
+     */
     private _tokenRenewalTimer?;
     /**
      * Instantiate a new receiver from the AMQP `Receiver`. Used by `EventHubClient`.
@@ -69,9 +119,10 @@ export declare class EventHubReceiver extends EventEmitter {
      * @param {string} options.filter.customFilter               If you want more fine-grained control of the filtering.
      *      See https://github.com/Azure/amqpnetlite/wiki/Azure%20Service%20Bus%20Event%20Hubs for details.
      */
-    constructor(client: EventHubClient, partitionId: string, options?: ReceiveOptions);
+    constructor(client: EventHubClient, partitionId: string | number, options?: ReceiveOptions);
     /**
-     * Negotiates the CBS claim and creates a new AMQP receiver under a new AMQP session.
+     * Creates a new AMQP receiver under a new AMQP session.
+     * @returns {Promoise<void>}
      */
     init(): Promise<void>;
     /**

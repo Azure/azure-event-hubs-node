@@ -9,16 +9,50 @@ import { EventHubClient, EventData } from ".";
  * @constructor
  */
 export declare class EventHubSender extends EventEmitter {
+    /**
+     * @property {string} [name] The unique EventHub Sender name (mostly a guid).
+     */
     name?: string;
+    /**
+     * @property {EventHubClient} client The EventHub client to which the sender belongs to.
+     */
     client: EventHubClient;
+    /**
+     * @property {string} [partitionId] The partitionId to which the sender wants to send the EventData.
+     */
     partitionId?: string | number;
+    /**
+     * @property {string} address The EventHub Sender address.
+     */
     address: string;
-    private _sender;
-    private _session;
+    /**
+     * @property {string} audience The EventHub Sender token audience.
+     */
+    audience: string;
+    /**
+     * @property {any} [_sender] The AMQP sender link.
+     * @private
+     */
+    private _sender?;
+    /**
+     * @property {any} [_session] The AMQP sender session.
+     * @private
+     */
+    private _session?;
+    /**
+     * @property {NodeJS.Timer} _tokenRenewalTimer The token renewal timer that keeps track of when the EventHub Sender is due for token renewal.
+     * @private
+     */
     private _tokenRenewalTimer?;
+    /**
+     * Creates a new EventHubSender instance.
+     * @constructor
+     * @param {EventHubClient} client The EventHub client.
+     * @param {string|number} [partitionId] The EventHub partition id to which the sender wants to send the event data.
+     */
     constructor(client: EventHubClient, partitionId?: string | number);
     /**
-     * Negotiates the cbs claim and initializes the sender session on the connection.
+     * Initializes the sender session on the connection.
      * @returns {Promoise<void>}
      */
     init(): Promise<void>;

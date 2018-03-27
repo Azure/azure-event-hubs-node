@@ -17,8 +17,14 @@ const debug = debugModule("azure:event-hubs:management");
  * to the $management endpoint over AMQP connection.
  */
 class ManagementClient {
+    /**
+     * @constructor
+     * Instantiates the management client.
+     * @param entityPath - The name/path of the entity (hub name) for which the management request needs to be made.
+     */
     constructor(entityPath) {
         this.entityPath = entityPath;
+        this.managementLock = `${Constants.managementRequestKey}-${uuid()}`;
         this.entityPath = entityPath;
     }
     /**
@@ -72,6 +78,25 @@ class ManagementClient {
         debug(`[%s] The partition info is: ${partitionInfo}.`, connection.options.id);
         return partitionInfo;
     }
+    /**
+     * Closes the AMQP management session to the Event Hub for this client,
+     * returning a promise that will be resolved when disconnection is completed.
+     * @return {Promise<void>}
+     */
+    async close() {
+        try {
+            if (this._mgmgtReqResLink) {
+                await this._mgmgtReqResLink.session.close();
+                debug("Successfully closed the management session.");
+                this._mgmgtReqResLink = undefined;
+            }
+        }
+        catch (err) {
+            const msg = `An error occurred while closing the management session: ${err}`;
+            debug(msg);
+            return Promise.reject(msg);
+        }
+    }
     async _init(connection, endpoint, replyTo) {
         if (!this._mgmgtReqResLink) {
             const rxopt = { source: { address: endpoint }, name: replyTo, target: { address: replyTo } };
@@ -110,7 +135,7 @@ class ManagementClient {
                 if (partitionId && type === Constants.partition) {
                     request.application_properties.partition = partitionId;
                 }
-                await utils_1.defaultLock.acquire(Constants.managementRequestKey, () => { return this._init(connection, endpoint, replyTo); });
+                await utils_1.defaultLock.acquire(this.managementLock, () => { return this._init(connection, endpoint, replyTo); });
                 // TODO: Handle timeout incase SB/EH does not send a response.
                 const messageCallback = ({ message, delivery }) => {
                     // remove the event listener as this will be registered next time when someone makes a request.

@@ -2,15 +2,18 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License. See License.txt in the project root for license information.
 Object.defineProperty(exports, "__esModule", { value: true });
-const events_1 = require("events");
-const eventData_1 = require("./eventData");
-const Constants = require("./util/constants");
-const errors = require("./errors");
-const rheaPromise = require("./rhea-promise");
-const cbs = require("./cbs");
 const rhea = require("rhea");
 const debugModule = require("debug");
+const rheaPromise = require("./rhea-promise");
+const errors = require("./errors");
+const Constants = require("./util/constants");
+const events_1 = require("events");
+const eventData_1 = require("./eventData");
 const debug = debugModule("azure:event-hubs:receiver");
+/**
+ * Describes the EventHubReceiver that will receive event data from EventHub.
+ * @class EventHubReceiver
+ */
 class EventHubReceiver extends events_1.EventEmitter {
     /**
      * Instantiate a new receiver from the AMQP `Receiver`. Used by `EventHubClient`.
@@ -35,7 +38,13 @@ class EventHubReceiver extends events_1.EventEmitter {
      */
     constructor(client, partitionId, options) {
         super();
+        /**
+         * @property {number} [prefetchCount] The number of messages that the receiver can fetch/receive initially. Defaults to 500.
+         */
         this.prefetchCount = 500;
+        /**
+         * @property {boolean} receiverRuntimeMetricEnabled Indicates whether receiver runtime metric is enabled. Default: false.
+         */
         this.receiverRuntimeMetricEnabled = false;
         if (!options)
             options = {};
@@ -43,12 +52,13 @@ class EventHubReceiver extends events_1.EventEmitter {
         this.partitionId = partitionId;
         this.consumerGroup = options.consumerGroup ? options.consumerGroup : Constants.defaultConsumerGroup;
         this.address = `${this.client.config.entityPath}/ConsumerGroups/${this.consumerGroup}/Partitions/${this.partitionId}`;
+        this.audience = `${this.client.config.endpoint}${this.address}`;
         this.prefetchCount = options.prefetchCount !== undefined && options.prefetchCount !== null ? options.prefetchCount : 500;
         this.epoch = options.epoch;
         this.options = options;
         this.receiverRuntimeMetricEnabled = options.enableReceiverRuntimeMetric || false;
         this.runtimeInfo = {
-            paritionId: partitionId
+            paritionId: `${partitionId}`
         };
         const onMessage = (context) => {
             const evData = eventData_1.EventData.fromAmqpMessage(context.message);
@@ -83,14 +93,11 @@ class EventHubReceiver extends events_1.EventEmitter {
         });
     }
     /**
-     * Negotiates the CBS claim and creates a new AMQP receiver under a new AMQP session.
+     * Creates a new AMQP receiver under a new AMQP session.
+     * @returns {Promoise<void>}
      */
     async init() {
         try {
-            const audience = `${this.client.config.endpoint}${this.address}`;
-            const tokenObject = await this.client.tokenProvider.getToken(audience);
-            debug(`[${this.client.connection.options.id}] EH Receiver: calling negotiateClaim for audience: ${audience}.`);
-            await cbs.negotiateClaim(audience, this.client.connection, tokenObject);
             if (!this._session && !this._receiver) {
                 let rcvrOptions = {
                     autoaccept: false,
@@ -209,6 +216,8 @@ class EventHubReceiver extends events_1.EventEmitter {
             // or can I directly close the session which will take care of closing the receiver as well.
             await this._receiver.detach();
             this.removeAllListeners();
+            delete this.client.receivers[this.name];
+            debug(`Deleted the receiver "${this.name}" from the client cache.`);
             this._receiver = undefined;
             this._session = undefined;
             clearTimeout(this._tokenRenewalTimer);
