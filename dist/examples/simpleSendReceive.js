@@ -13,7 +13,7 @@ async function main() {
     console.log(">>>> Hub: \n", hub);
     for (let i = 0; i < ids.length; i++) {
         console.log("***********Creating receiver %d", i);
-        const receiver = await client.createReceiver(ids[i], { filter: { startAfterTime: Date.now() } });
+        const receiver = await client.createReceiver(ids[i], { eventPosition: lib_1.EventPosition.fromEnqueuedTime(Date.now()) });
         console.log("***********Created receiver %d", i);
         receiver.on("message", async (eventData) => {
             console.log(">>> EventDataObject: ", eventData);

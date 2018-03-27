@@ -10,6 +10,7 @@ const partitionContext_1 = require("./partitionContext");
 const eventHubClient_1 = require("../eventHubClient");
 const events_1 = require("events");
 const errors_1 = require("../errors");
+const __1 = require("..");
 const debug = debugModule("azure:event-hubs:processor:host");
 /**
  * Describes the Event Processor Host to process events from an EventHub.
@@ -170,11 +171,11 @@ class EventProcessorHost extends events_1.EventEmitter {
         if (!context)
             return Promise.reject(new Error("Invalid state - missing context for partition " + partitionId));
         const checkpoint = await context.updateCheckpointDataFromLease();
-        let filterOptions;
+        let eventPosition = undefined;
         if (checkpoint && checkpoint.offset) {
-            filterOptions = { startAfterOffset: checkpoint.offset };
+            eventPosition = __1.EventPosition.fromOffset(checkpoint.offset);
         }
-        const rcvrOptions = { consumerGroup: this._consumerGroup, filter: filterOptions };
+        const rcvrOptions = { consumerGroup: this._consumerGroup, eventPosition: eventPosition };
         const receiver = await this._eventHubClient.createReceiver(partitionId, rcvrOptions);
         debug(`[${this._eventHubClient.connection.options.id}] Attaching receiver "${receiver.name}" ` +
             `for partition "${partitionId}" with offset: ${(checkpoint ? checkpoint.offset : "None")}`);

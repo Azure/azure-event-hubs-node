@@ -20,7 +20,7 @@ class EventHubReceiver extends events_1.EventEmitter {
      *
      * @constructor
      * @param {EventHubClient} client                            The EventHub client.
-     * @param {string} partitionId                    Partition ID from which to receive.
+     * @param {string} partitionId                               Partition ID from which to receive.
      * @param {ReceiveOptions} [options]                         Options for how you'd like to connect.
      * @param {string} [options.consumerGroup]                   Consumer group from which to receive.
      * @param {number} [options.prefetchcount]                   The upper limit of events this receiver will
@@ -29,12 +29,10 @@ class EventHubReceiver extends events_1.EventEmitter {
      * for a logical partition of an Event Hub if the value is true. Default false.
      * @param {number} [options.epoch]                           The epoch value that this receiver is currently
      * using for partition ownership. A value of undefined means this receiver is not an epoch-based receiver.
-     * @param {ReceiveOptions.filter} [options.filter]           Filter settings on the receiver. Only one of
-     * startAfterTime, startAfterOffset, customFilter can be specified
-     * @param {(Date|Number)} options.filter.startAfterTime      Only receive messages enqueued after the given time.
-     * @param {string} options.filter.startAfterOffset           Only receive messages after the given offset.
-     * @param {string} options.filter.customFilter               If you want more fine-grained control of the filtering.
-     *      See https://github.com/Azure/amqpnetlite/wiki/Azure%20Service%20Bus%20Event%20Hubs for details.
+     * @param {EventPosition} [options.eventPosition]            The position of EventData in the EventHub parition from
+     * where the receiver should start receiving. Only one of offset, sequenceNumber, enqueuedTime, customFilter can be specified.
+     * `EventPosition.withCustomFilter()` should be used if you want more fine-grained control of the filtering.
+     * See https://github.com/Azure/amqpnetlite/wiki/Azure%20Service%20Bus%20Event%20Hubs for details.
      */
     constructor(client, partitionId, options) {
         super();
@@ -114,26 +112,13 @@ class EventHubReceiver extends events_1.EventEmitter {
                 if (this.receiverRuntimeMetricEnabled) {
                     rcvrOptions.desired_capabilities = Constants.enableReceiverRuntimeMetricName;
                 }
-                if (this.options) {
-                    // Set filter on the receiver if specified.
-                    if (this.options.filter) {
-                        let filterSetting = this.options.filter;
-                        let filterClause = "";
-                        if (filterSetting.startAfterTime) {
-                            let time = (filterSetting.startAfterTime instanceof Date) ? filterSetting.startAfterTime.getTime() : filterSetting.startAfterTime;
-                            filterClause = `${Constants.enqueuedTimeAnnotation} > '${time}'`;
-                        }
-                        else if (filterSetting.startAfterOffset) {
-                            filterClause = `${Constants.offsetAnnotation} > '${filterSetting.startAfterOffset}'`;
-                        }
-                        else if (filterSetting.customFilter) {
-                            filterClause = filterSetting.customFilter;
-                        }
-                        if (filterClause) {
-                            rcvrOptions.source.filter = {
-                                "apache.org:selector-filter:string": rhea.types.wrap_described(filterClause, 0x468C00000004)
-                            };
-                        }
+                if (this.options && this.options.eventPosition) {
+                    // Set filter on the receiver if event position is specified.
+                    let filterClause = this.options.eventPosition.getExpression();
+                    if (filterClause) {
+                        rcvrOptions.source.filter = {
+                            "apache.org:selector-filter:string": rhea.types.wrap_described(filterClause, 0x468C00000004)
+                        };
                     }
                 }
                 this._session = await rheaPromise.createSession(this.client.connection);

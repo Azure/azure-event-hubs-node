@@ -6,8 +6,9 @@ exports.partitionKey = "x-opt-partition-key";
 exports.sequenceNumber = "x-opt-sequence-number";
 exports.enqueuedTime = "x-opt-enqueued-time";
 exports.offset = "x-opt-offset";
-exports.enqueuedTimeAnnotation = "amqp.annotation.x-opt-enqueued-time";
-exports.offsetAnnotation = "amqp.annotation.x-opt-offset";
+exports.enqueuedTimeAnnotation = `amqp.annotation.${exports.enqueuedTime}`;
+exports.offsetAnnotation = `amqp.annotation.${exports.offset}`;
+exports.sequenceNumberAnnotation = `amqp.annotation.${exports.sequenceNumber}`;
 exports.message = "message";
 exports.error = "error";
 exports.statusCode = "status-code";
@@ -25,10 +26,6 @@ exports.cbsReplyTo = "cbs";
 exports.operationPutToken = "put-token";
 exports.aadEventHubsAudience = "https://eventhubs.azure.net/";
 exports.maxUserAgentLength = 128;
-exports.packageJsonInfo = {
-    name: "azure-event-hubs-js",
-    version: "0.1.0"
-};
 exports.vendorString = "com.microsoft";
 exports.attachEpoch = `${exports.vendorString}:epoch`;
 exports.enableReceiverRuntimeMetricName = `${exports.vendorString}:enable-receiver-runtime-metric`;
@@ -40,4 +37,8 @@ exports.defaultOperationTimeoutInSeconds = 60;
 exports.managementRequestKey = "managementRequest";
 exports.negotiateCbsKey = "negotiateCbs";
 exports.ensureContainerAndBlob = "ensureContainerAndBlob";
+exports.packageJsonInfo = {
+    name: "azure-event-hubs-js",
+    version: "0.1.0"
+};
 //# sourceMappingURL=constants.js.map

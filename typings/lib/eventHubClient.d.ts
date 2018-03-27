@@ -2,15 +2,13 @@ import { ApplicationTokenCredentials, DeviceTokenCredentials, UserTokenCredentia
 import { EventHubReceiver, EventHubSender, ConnectionConfig } from ".";
 import { TokenProvider } from "./auth/token";
 import { EventHubPartitionRuntimeInformation, EventHubRuntimeInformation } from "./managementClient";
+import EventPosition from "./eventPosition";
 export interface ReceiveOptions {
     /**
-     * @property {object} [filter] The filters that can be applied on the receiver. Only one of th
+     * @property {object} [eventPosition] The starting event position at which to start receiving messages.
+     * This is used to filter messages for the EventHub Receiver.
      */
-    filter?: {
-        startAfterTime?: Date | number;
-        startAfterOffset?: string;
-        customFilter?: string;
-    };
+    eventPosition?: EventPosition;
     /**
      * @property {string} [consumerGroup] The consumer group to which the receiver wants to connect to.
      * If not provided then it will be connected to "$default" consumer group.
@@ -73,10 +71,9 @@ export declare class EventHubClient {
     createSender(partitionId?: string | number): Promise<EventHubSender>;
     /**
      * Creates a new receiver that will receive event data from the EventHub.
-     *
-     * @constructor
+     * @method createReceiver
      * @param {EventHubClient} client                            The EventHub client.
-     * @param {string|number} partitionId                    Partition ID from which to receive.
+     * @param {string|number} partitionId                        Partition ID from which to receive.
      * @param {ReceiveOptions} [options]                         Options for how you'd like to connect.
      * @param {string} [options.consumerGroup]                   Consumer group from which to receive.
      * @param {number} [options.prefetchcount]                   The upper limit of events this receiver will
@@ -85,12 +82,10 @@ export declare class EventHubClient {
      * for a logical partition of an Event Hub if the value is true. Default false.
      * @param {number} [options.epoch]                           The epoch value that this receiver is currently
      * using for partition ownership. A value of undefined means this receiver is not an epoch-based receiver.
-     * @param {ReceiveOptions.filter} [options.filter]           Filter settings on the receiver. Only one of
-     * startAfterTime, startAfterOffset, customFilter can be specified
-     * @param {(Date|Number)} options.filter.startAfterTime      Only receive messages enqueued after the given time.
-     * @param {string} options.filter.startAfterOffset           Only receive messages after the given offset.
-     * @param {string} options.filter.customFilter               If you want more fine-grained control of the filtering.
-     *      See https://github.com/Azure/amqpnetlite/wiki/Azure%20Service%20Bus%20Event%20Hubs for details.
+     * @param {EventPosition} [options.eventPosition]            The position of EventData in the EventHub parition from
+     * where the receiver should start receiving. Only one of offset, sequenceNumber, enqueuedTime, customFilter can be specified.
+     * `EventPosition.withCustomFilter()` should be used if you want more fine-grained control of the filtering.
+     * See https://github.com/Azure/amqpnetlite/wiki/Azure%20Service%20Bus%20Event%20Hubs for details.
      */
     createReceiver(partitionId: string | number, options?: ReceiveOptions): Promise<EventHubReceiver>;
     /**

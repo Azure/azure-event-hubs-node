@@ -14,7 +14,7 @@
     "azure-storage": "^2.8.1",
     "buffer": "^5.1.0",
     "debug": "^3.1.0",
-    "rhea": "amqp/rhea#master",
+    "rhea": "^0.2.11",
     "ms-rest": "^2.3.2",
     "ms-rest-azure": "^2.5.5"
   },
@@ -34,7 +34,7 @@
     "tsc": "tsc",
     "build": " npm run tslint && npm run tsc",
     "test": "npm run unit",
-    "unit": "mocha -r ts-node/register -t 50000 ./tests/**/*.spec.ts"
+    "unit": "mocha -r ts-node/register -t 50000 ./tests/**/*.spec.ts --abort-on-uncaught-exception"
   },
   "homepage": "http://github.com/azure/azure-event-hubs-node",
   "repository": {
