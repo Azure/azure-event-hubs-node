@@ -1,6 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License. See License.txt in the project root for license information.
 
+import * as os from "os";
+import * as process from "process";
+import * as debugModule from "debug";
 import * as rheaPromise from "./rhea-promise";
 import * as Constants from "./util/constants";
 import { ApplicationTokenCredentials, DeviceTokenCredentials, UserTokenCredentials, MSITokenCredentials } from "ms-rest-azure";
@@ -8,12 +11,10 @@ import { EventHubReceiver, EventHubSender, ConnectionConfig } from ".";
 import { TokenProvider } from "./auth/token";
 import { SasTokenProvider } from "./auth/sas";
 import { AadTokenProvider } from "./auth/aad";
-import * as os from "os";
-import * as process from "process";
 import { ManagementClient, EventHubPartitionRuntimeInformation, EventHubRuntimeInformation } from "./managementClient";
-import * as debugModule from "debug";
+import { CbsClient } from "./cbs";
+import { defaultLock } from "./util/utils";
 const debug = debugModule("azure:event-hubs:client");
-
 
 export interface ReceiveOptions {
   /**
@@ -44,13 +45,21 @@ export interface ReceiveOptions {
   enableReceiverRuntimeMetric?: boolean;
 }
 
-export class EventHubClient {
 
+/**
+ * @class EventHubClient
+ * Describes the EventHub client.
+ */
+export class EventHubClient {
   config: ConnectionConfig;
   tokenProvider: TokenProvider;
   connection?: any;
+  connectionId?: string;
   userAgent: string = "/js-event-hubs";
-  private managementClient: ManagementClient;
+  receivers: { [x: string]: EventHubReceiver };
+  senders: { [x: string]: EventHubSender };
+  private _managementClient: ManagementClient;
+  private _cbsClient: CbsClient;
 
   /**
    * Instantiate a client pointing to the Event Hub given by this configuration.
@@ -61,13 +70,17 @@ export class EventHubClient {
    * Default value: SasTokenProvider.
    */
   constructor(config: ConnectionConfig, tokenProvider?: TokenProvider) {
+    ConnectionConfig.validate(config);
     this.config = config;
     if (!tokenProvider) {
       tokenProvider = new SasTokenProvider(config.endpoint, config.sharedAccessKeyName, config.sharedAccessKey);
     }
     this.tokenProvider = tokenProvider;
     this.userAgent = "/js-event-hubs";
-    this.managementClient = new ManagementClient(this.config.entityPath as string);
+    this._managementClient = new ManagementClient(this.config.entityPath as string);
+    this._cbsClient = new CbsClient();
+    this.senders = {};
+    this.receivers = {};
   }
 
   /**
@@ -77,28 +90,58 @@ export class EventHubClient {
    * @returns {Promise<any>}
    */
   async close(): Promise<any> {
-    if (this.connection) {
-      await this.connection.close();
-      debug(`Closed the amqp connection "${this.connection.options.id}" on the client.`);
-      this.connection = undefined;
+    try {
+      if (this.connection) {
+        // Close all the senders.
+        for (let sender of Object.values(this.senders)) {
+          await sender.close();
+        }
+        // Close all the receivers.
+        for (let receiver of Object.values(this.receivers)) {
+          await receiver.close();
+        }
+        // Close the cbs session;
+        await this._cbsClient.close();
+        // Close the management session
+        await this._managementClient.close();
+        await this.connection.close();
+        debug(`Closed the amqp connection "${this.connection.options.id}" on the client.`);
+        this.connection = undefined;
+      }
+    } catch (err) {
+      const msg = `An error occurred while closing the connection "${this.connection.options.id}": ${JSON.stringify(err)}`;
+      debug(msg);
+      return Promise.reject(msg);
     }
   }
 
   /**
    * Creates a sender to the given event hub, and optionally to a given partition.
    * @method createSender
-   * @param {(string|number)} [partitionId] Partition ID to which it will send messages.
+   * @param {(string|number)} [partitionId] Partition ID to which it will send event data.
    * @returns {Promise<EventHubSender>}
    */
   async createSender(partitionId?: string | number): Promise<EventHubSender> {
     if (partitionId && typeof partitionId !== "string" && typeof partitionId !== "number") {
       throw new Error("'partitionId' is a required parameter and must be of type: 'string' | 'number'.");
     }
-
     try {
       let ehSender = new EventHubSender(this, partitionId);
+      // Establish the amqp connection if it does not exist.
       await this._open();
+      // Acquire the lock and establish a cbs session if it does not exist on the connection. Although node.js
+      // is single threaded, we need a locking mechanism to ensure that a race condition does not happen while
+      // creating a shared resource (in this case the cbs session, since we want to have exactly 1 cbs session
+      // per connection).
+      debug(`Acquiring lock: ${this._cbsClient.cbsLock} for creating the cbs session while creating the sender.`);
+      await defaultLock.acquire(this._cbsClient.cbsLock, () => { return this._cbsClient.init(this.connection); });
+      const tokenObject = await this.tokenProvider.getToken(ehSender.audience);
+      debug(`[${this.connection.options.id}] EH Sender: calling negotiateClaim for audience "${ehSender.audience}"`);
+      // Negotitate the CBS claim.
+      await this._cbsClient.negotiateClaim(ehSender.audience, this.connection, tokenObject);
+      // Initialize the sender.
       await ehSender.init();
+      this.senders[ehSender.name!] = ehSender;
       return ehSender;
     } catch (err) {
       return Promise.reject(err);
@@ -106,11 +149,11 @@ export class EventHubClient {
   }
 
   /**
-   * Instantiate a new receiver from the AMQP `Receiver`. Used by `EventHubClient`.
+   * Creates a new receiver that will receive event data from the EventHub.
    *
    * @constructor
    * @param {EventHubClient} client                            The EventHub client.
-   * @param {string} partitionId                    Partition ID from which to receive.
+   * @param {string|number} partitionId                    Partition ID from which to receive.
    * @param {ReceiveOptions} [options]                         Options for how you'd like to connect.
    * @param {string} [options.consumerGroup]                   Consumer group from which to receive.
    * @param {number} [options.prefetchcount]                   The upper limit of events this receiver will
@@ -126,15 +169,24 @@ export class EventHubClient {
    * @param {string} options.filter.customFilter               If you want more fine-grained control of the filtering.
    *      See https://github.com/Azure/amqpnetlite/wiki/Azure%20Service%20Bus%20Event%20Hubs for details.
    */
-  async createReceiver(partitionId: string, options?: ReceiveOptions): Promise<EventHubReceiver> {
+  async createReceiver(partitionId: string | number, options?: ReceiveOptions): Promise<EventHubReceiver> {
     if (!partitionId || (partitionId && typeof partitionId !== "string" && typeof partitionId !== "number")) {
       throw new Error("'partitionId' is a required parameter and must be of type: 'string' | 'number'.");
     }
 
     try {
       let ehReceiver = new EventHubReceiver(this, partitionId, options);
+      // Establish the amqp connection if it does not exist.
       await this._open();
+      // Acquire the lock and establish a cbs session if it does not exist on the connection.
+      await defaultLock.acquire(this._cbsClient.cbsLock, () => { return this._cbsClient.init(this.connection); });
+      const tokenObject = await this.tokenProvider.getToken(ehReceiver.audience);
+      debug(`[${this.connection.options.id}] EH Sender: calling negotiateClaim for audience "${ehReceiver.audience}"`);
+      // Negotitate the CBS claim.
+      await this._cbsClient.negotiateClaim(ehReceiver.audience, this.connection, tokenObject);
+      // Initialize the receiver.
       await ehReceiver.init();
+      this.receivers[ehReceiver.name!] = ehReceiver;
       return ehReceiver;
     } catch (err) {
       return Promise.reject(err);
@@ -149,7 +201,7 @@ export class EventHubClient {
   async getHubRuntimeInformation(): Promise<EventHubRuntimeInformation> {
     try {
       await this._open();
-      return await this.managementClient.getHubRuntimeInformation(this.connection);
+      return await this._managementClient.getHubRuntimeInformation(this.connection);
     } catch (err) {
       return Promise.reject(err);
     }
@@ -177,7 +229,7 @@ export class EventHubClient {
   async getPartitionInformation(partitionId: string | number): Promise<EventHubPartitionRuntimeInformation> {
     try {
       await this._open();
-      return await this.managementClient.getPartitionInformation(this.connection, partitionId);
+      return await this._managementClient.getPartitionInformation(this.connection, partitionId);
     } catch (err) {
       return Promise.reject(err);
     }

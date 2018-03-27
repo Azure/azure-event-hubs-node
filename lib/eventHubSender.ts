@@ -3,7 +3,6 @@
 
 import * as rhea from "rhea";
 import * as debugModule from "debug";
-import * as cbs from "./cbs";
 import * as errors from "./errors";
 import * as rheaPromise from "./rhea-promise";
 import * as Constants from "./util/constants";
@@ -21,14 +20,48 @@ const debug = debugModule("azure:event-hubs:sender");
  * @constructor
  */
 export class EventHubSender extends EventEmitter {
+  /**
+   * @property {string} [name] The unique EventHub Sender name (mostly a guid).
+   */
   name?: string;
+  /**
+   * @property {EventHubClient} client The EventHub client to which the sender belongs to.
+   */
   client: EventHubClient;
+  /**
+   * @property {string} [partitionId] The partitionId to which the sender wants to send the EventData.
+   */
   partitionId?: string | number;
+  /**
+   * @property {string} address The EventHub Sender address.
+   */
   address: string;
-  private _sender: any;
-  private _session: any;
+  /**
+   * @property {string} audience The EventHub Sender token audience.
+   */
+  audience: string;
+  /**
+   * @property {any} [_sender] The AMQP sender link.
+   * @private
+   */
+  private _sender?: any;
+  /**
+   * @property {any} [_session] The AMQP sender session.
+   * @private
+   */
+  private _session?: any;
+  /**
+   * @property {NodeJS.Timer} _tokenRenewalTimer The token renewal timer that keeps track of when the EventHub Sender is due for token renewal.
+   * @private
+   */
   private _tokenRenewalTimer?: NodeJS.Timer;
 
+  /**
+   * Creates a new EventHubSender instance.
+   * @constructor
+   * @param {EventHubClient} client The EventHub client.
+   * @param {string|number} [partitionId] The EventHub partition id to which the sender wants to send the event data.
+   */
   constructor(client: EventHubClient, partitionId?: string | number) {
     super();
     this.client = client;
@@ -37,7 +70,7 @@ export class EventHubSender extends EventEmitter {
     if (this.partitionId !== null && this.partitionId !== undefined) {
       this.address += `/Partitions/${this.partitionId}`;
     }
-
+    this.audience = `${this.client.config.endpoint}${this.address}`;
     const onError = (context: rheaPromise.Context) => {
       this.emit(Constants.error, errors.translate(context.sender.error));
     };
@@ -60,15 +93,11 @@ export class EventHubSender extends EventEmitter {
   }
 
   /**
-   * Negotiates the cbs claim and initializes the sender session on the connection.
+   * Initializes the sender session on the connection.
    * @returns {Promoise<void>}
    */
   async init(): Promise<void> {
     try {
-      let audience = `${this.client.config.endpoint}${this.address}`;
-      const tokenObject = await this.client.tokenProvider.getToken(audience);
-      debug(`[${this.client.connection.options.id}] EH Sender: calling negotiateClaim for audience "${audience}"`);
-      await cbs.negotiateClaim(audience, this.client.connection, tokenObject);
       if (!this._session && !this._sender) {
         this._session = await rheaPromise.createSession(this.client.connection);
         let options: rheaPromise.SenderOptions = {
@@ -176,6 +205,8 @@ export class EventHubSender extends EventEmitter {
     try {
       await this._sender.detach();
       this.removeAllListeners();
+      delete this.client.senders[this.name!];
+      debug(`Deleted the sender "${this.name!}" from the client cache.`);
       this._sender = undefined;
       this._session = undefined;
       clearTimeout(this._tokenRenewalTimer as NodeJS.Timer);

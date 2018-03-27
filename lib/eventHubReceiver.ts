@@ -1,15 +1,14 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License. See License.txt in the project root for license information.
 
-import { EventEmitter } from "events";
-import { EventData } from "./eventData";
-import * as Constants from "./util/constants";
-import { EventHubClient, ReceiveOptions } from ".";
-import * as errors from "./errors";
-import * as rheaPromise from "./rhea-promise";
-import * as cbs from "./cbs";
 import * as rhea from "rhea";
 import * as debugModule from "debug";
+import * as rheaPromise from "./rhea-promise";
+import * as errors from "./errors";
+import * as Constants from "./util/constants";
+import { EventEmitter } from "events";
+import { EventData } from "./eventData";
+import { EventHubClient, ReceiveOptions } from ".";
 const debug = debugModule("azure:event-hubs:receiver");
 
 /**
@@ -46,19 +45,69 @@ export interface OnMessage {
   (event: "message", handler: (eventData: EventData) => void): void;
 }
 
+/**
+ * Describes the EventHubReceiver that will receive event data from EventHub.
+ * @class EventHubReceiver
+ */
 export class EventHubReceiver extends EventEmitter {
-  address: string;
-  client: EventHubClient;
-  consumerGroup: string;
-  partitionId: string;
-  runtimeInfo: ReceiverRuntimeInfo;
-  epoch?: number;
+  /**
+   * @property {string} [name] The unique EventHub Receiver name (mostly a guid).
+   */
   name?: string;
+  /**
+   * @property {string} address The EventHub Receiver address.
+   */
+  address: string;
+  /**
+   * @property {EventHubClient} client The EventHub client to which the receiver belongs to.
+   */
+  client: EventHubClient;
+  /**
+   * @property {string} audience The EventHub Receiver token audience.
+   */
+  audience: string;
+  /**
+   * @property {string} consumerGroup The EventHub consumer group from which the receiver will receive messages. (Default: "default").
+   */
+  consumerGroup: string;
+  /**
+   * @property {string | number} partitionId The EentHub partitionId from which the receiver will receive messages.
+   */
+  partitionId: string | number;
+  /**
+   * @property {ReceiverRuntimeInfo} runtimeInfo The receiver runtime info.
+   */
+  runtimeInfo: ReceiverRuntimeInfo;
+  /**
+   * @property {number} [epoch] The Receiver epoch.
+   */
+  epoch?: number;
+  /**
+   * @property {ReceiveOptions} [options] Optional properties that can be set while creating the EventHubReceiver.
+   */
   options?: ReceiveOptions;
+  /**
+   * @property {number} [prefetchCount] The number of messages that the receiver can fetch/receive initially. Defaults to 500.
+   */
   prefetchCount?: number = 500;
+  /**
+   * @property {boolean} receiverRuntimeMetricEnabled Indicates whether receiver runtime metric is enabled. Default: false.
+   */
   receiverRuntimeMetricEnabled: boolean = false;
-  private _receiver: any;
-  private _session: any;
+  /**
+   * @property {any} [_receiver] The AMQP receiver link.
+   * @private
+   */
+  private _receiver?: any;
+  /**
+   * @property {any} [_session] The AMQP receiver session.
+   * @private
+   */
+  private _session?: any;
+  /**
+   * @property {NodeJS.Timer} _tokenRenewalTimer The token renewal timer that keeps track of when the EventHub Sender is due for token renewal.
+   * @private
+   */
   private _tokenRenewalTimer?: NodeJS.Timer;
 
 
@@ -83,19 +132,20 @@ export class EventHubReceiver extends EventEmitter {
    * @param {string} options.filter.customFilter               If you want more fine-grained control of the filtering.
    *      See https://github.com/Azure/amqpnetlite/wiki/Azure%20Service%20Bus%20Event%20Hubs for details.
    */
-  constructor(client: EventHubClient, partitionId: string, options?: ReceiveOptions) {
+  constructor(client: EventHubClient, partitionId: string | number, options?: ReceiveOptions) {
     super();
     if (!options) options = {};
     this.client = client;
     this.partitionId = partitionId;
     this.consumerGroup = options.consumerGroup ? options.consumerGroup : Constants.defaultConsumerGroup;
     this.address = `${this.client.config.entityPath}/ConsumerGroups/${this.consumerGroup}/Partitions/${this.partitionId}`;
+    this.audience = `${this.client.config.endpoint}${this.address}`;
     this.prefetchCount = options.prefetchCount !== undefined && options.prefetchCount !== null ? options.prefetchCount : 500;
     this.epoch = options.epoch;
     this.options = options;
     this.receiverRuntimeMetricEnabled = options.enableReceiverRuntimeMetric || false;
     this.runtimeInfo = {
-      paritionId: partitionId
+      paritionId: `${partitionId}`
     };
 
     const onMessage = (context: rheaPromise.Context) => {
@@ -136,14 +186,11 @@ export class EventHubReceiver extends EventEmitter {
   }
 
   /**
-   * Negotiates the CBS claim and creates a new AMQP receiver under a new AMQP session.
+   * Creates a new AMQP receiver under a new AMQP session.
+   * @returns {Promoise<void>}
    */
   async init(): Promise<void> {
     try {
-      const audience = `${this.client.config.endpoint}${this.address}`;
-      const tokenObject = await this.client.tokenProvider.getToken(audience);
-      debug(`[${this.client.connection.options.id}] EH Receiver: calling negotiateClaim for audience: ${audience}.`);
-      await cbs.negotiateClaim(audience, this.client.connection, tokenObject);
       if (!this._session && !this._receiver) {
         let rcvrOptions: rheaPromise.ReceiverOptions = {
           autoaccept: false,
@@ -262,6 +309,8 @@ export class EventHubReceiver extends EventEmitter {
       // or can I directly close the session which will take care of closing the receiver as well.
       await this._receiver.detach();
       this.removeAllListeners();
+      delete this.client.receivers[this.name!];
+      debug(`Deleted the receiver "${this.name!}" from the client cache.`);
       this._receiver = undefined;
       this._session = undefined;
       clearTimeout(this._tokenRenewalTimer as NodeJS.Timer);
