@@ -3,8 +3,8 @@ import { EventProcessorHost, EventHubClient } from "../lib";
 import PartitionContext from "../lib/eph/partitionContext";
 import { EventData } from "../lib/eventData";
 
-const connectionString = "SB_CONNECTION_STRING";
-const entityPath = "ENTITY_PATH";
+const connectionString = "EVENTHUB_CONNECTION_STRING";
+const entityPath = "EVENTHUB_NAME";
 const str = process.env[connectionString] || "";
 const path = process.env[entityPath] || "";
 const storage = "STORAGE_CONNECTION_STRING";
@@ -15,7 +15,7 @@ let ehc = EventHubClient.createFromConnectionString(str, path);
 async function main(): Promise<void> {
   try {
     const ids = await ehc.getPartitionIds();
-    // const sender = await ehc.createSender();
+    const sender = await ehc.createSender();
     ids.forEach((id) => {
       partitions[id] = false;
     });
@@ -42,7 +42,7 @@ async function main(): Promise<void> {
         if (!partitions[p]) allSet = false;
       }
       if (allSet) {
-        // sender.send({ body: "Hey there!!" });
+        sender.send({ body: "Hey there!!" });
       }
     });
     await host.start();
