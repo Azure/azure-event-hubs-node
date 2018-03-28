@@ -35,6 +35,7 @@
   "include": [
     "./lib",
     "./examples",
-    "./tests"
+    "./tests",
+    "./testhub"
   ]
 }
