@@ -1,7 +1,6 @@
 // Copyright (c) Microsoft. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 import { CommandBuilder } from "yargs";
-import * as crypto from "crypto";
 import { EventHubClient, EventData, EventHubSender } from "../../lib";
 
 export const command = "send";
@@ -46,20 +45,25 @@ export async function handler(argv: any): Promise<void> {
     }
     client = EventHubClient.createFromConnectionString(connectionString, argv.hub);
     const sender: EventHubSender = await client.createSender();
+    console.log(`Created Sender - "${sender.name}".`);
     const msgCount = argv.msgCount;
     const msgSize = argv.msgSize;
+    const msgBody = Buffer.from("Z".repeat(msgSize));
+    const obj: EventData = { body: msgBody };
     if (msgCount > 1) {
-      sender.send({ body: crypto.randomBytes(msgSize) });
-    } else {
       let datas: EventData[] = [];
       let count = 0;
       for (let i = 0; i < msgCount; i++) {
-        let obj: EventData = { body: crypto.randomBytes(msgSize) };
         datas.push(obj);
         count++;
       }
+      console.log(`Created a batch message where ${datas.length} messages are grouped together and the size of each message is: ${msgBody.length}.`);
       sender.sendBatch(datas);
-      console.log("Number of Sent messages: ", count);
+      console.log("[Sender - %s] Number of messages sent in a batch: ", sender.name, count);
+    } else {
+      console.log(`Created the message of specified size: ${msgBody.length}.`);
+      sender.send({ body: obj });
+      console.log("[Sender - %s] sent the message.", sender.name);
     }
   } catch (err) {
     return Promise.reject(err);

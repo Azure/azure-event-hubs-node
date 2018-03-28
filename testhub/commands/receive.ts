@@ -31,11 +31,11 @@ export const builder: CommandBuilder = {
     default: "-1",
     string: true
   },
-  d: {
-    alias: "duration",
-    describe: "Duration in seconds of the test",
-    default: 3600,
-    number: true
+  f: {
+    alias: "full-event-data",
+    describe: "Display the complete EventData object.",
+    default: false,
+    boolean: true
   }
 };
 
@@ -67,12 +67,19 @@ export async function handler(argv: any): Promise<void> {
     if (!partitionIds) {
       partitionIds = await client.getPartitionIds();
     }
+    console.log("PartitionIds in the eventhub '%s' are: ", argv.hub, partitionIds);
     for (let id of partitionIds) {
       let receiver: EventHubReceiver = await client.createReceiver(id, { consumerGroup: consumerGroup, eventPosition: EventPosition.fromOffset(offset, true) });
       console.log(`Created Receiver: "${receiver.name!}" for partition: "${id}" in consumer group: "${consumerGroup}" in event hub "${argv.hub}".`);
       receiver.on("message", (m: EventData) => {
         if (m.body) {
-          console.log("[Receiver - %s], %s, Received message:", receiver.name!, m.enqueuedTimeUtc!.toString(), m.body.toString());
+          console.log("----------------------------------------------------------");
+          console.log("[Receiver - %s]", receiver.name!);
+          console.log("EnqueuedTime - %s", m.enqueuedTimeUtc!.toString());
+          console.log("Received message body - ", m.body.toString());
+        }
+        if (argv.fullEventData) {
+          console.log("Corresponding EventData object: %o", m);
         }
       });
       console.log(`Attached message handler for receiver - "${receiver.name!}"`)

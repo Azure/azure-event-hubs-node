@@ -110,7 +110,6 @@ class EventHubClient {
     /**
      * Creates a new receiver that will receive event data from the EventHub.
      * @method createReceiver
-     * @param {EventHubClient} client                            The EventHub client.
      * @param {string|number} partitionId                        Partition ID from which to receive.
      * @param {ReceiveOptions} [options]                         Options for how you'd like to connect.
      * @param {string} [options.consumerGroup]                   Consumer group from which to receive.
