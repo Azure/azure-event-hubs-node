@@ -7,8 +7,9 @@ import * as errors from "./errors";
 import * as rheaPromise from "./rhea-promise";
 import * as Constants from "./util/constants";
 import { EventEmitter } from "events";
-import { EventHubClient, EventData } from ".";
-import { AmqpMessage } from "./eventData";
+import { EventData, AmqpMessage } from ".";
+import { ConnectionContext } from "./eventHubClient";
+import { defaultLock } from "./util/utils";
 
 const debug = debugModule("azure:event-hubs:sender");
 
@@ -25,10 +26,6 @@ export class EventHubSender extends EventEmitter {
    */
   name?: string;
   /**
-   * @property {EventHubClient} client The EventHub client to which the sender belongs to.
-   */
-  client: EventHubClient;
-  /**
    * @property {string} [partitionId] The partitionId to which the sender wants to send the EventData.
    */
   partitionId?: string | number;
@@ -41,6 +38,12 @@ export class EventHubSender extends EventEmitter {
    */
   audience: string;
   /**
+   * @property {ConnectionContext} _context Provides relevant information about the amqp connection,
+   * cbs and $management sessions, token provider, sender and receivers.
+   * @private
+   */
+  private _context: ConnectionContext;
+  /**
    * @property {any} [_sender] The AMQP sender link.
    * @private
    */
@@ -51,7 +54,8 @@ export class EventHubSender extends EventEmitter {
    */
   private _session?: any;
   /**
-   * @property {NodeJS.Timer} _tokenRenewalTimer The token renewal timer that keeps track of when the EventHub Sender is due for token renewal.
+   * @property {NodeJS.Timer} _tokenRenewalTimer The token renewal timer that keeps track of when
+   * the EventHub Sender is due for token renewal.
    * @private
    */
   private _tokenRenewalTimer?: NodeJS.Timer;
@@ -62,15 +66,15 @@ export class EventHubSender extends EventEmitter {
    * @param {EventHubClient} client The EventHub client.
    * @param {string|number} [partitionId] The EventHub partition id to which the sender wants to send the event data.
    */
-  constructor(client: EventHubClient, partitionId?: string | number) {
+  constructor(context: ConnectionContext, partitionId?: string | number) {
     super();
-    this.client = client;
-    this.address = this.client.config.entityPath as string;
+    this._context = context;
+    this.address = this._context.config.entityPath as string;
     this.partitionId = partitionId;
     if (this.partitionId !== null && this.partitionId !== undefined) {
       this.address += `/Partitions/${this.partitionId}`;
     }
-    this.audience = `${this.client.config.endpoint}${this.address}`;
+    this.audience = `${this._context.config.endpoint}${this.address}`;
     const onError = (context: rheaPromise.Context) => {
       this.emit(Constants.error, errors.translate(context.sender.error));
     };
@@ -98,8 +102,20 @@ export class EventHubSender extends EventEmitter {
    */
   async init(): Promise<void> {
     try {
+      // Acquire the lock and establish a cbs session if it does not exist on the connection. Although node.js
+      // is single threaded, we need a locking mechanism to ensure that a race condition does not happen while
+      // creating a shared resource (in this case the cbs session, since we want to have exactly 1 cbs session
+      // per connection).
+      debug(`Acquiring lock: ${this._context.cbsSession.cbsLock} for creating the cbs session while creating` +
+        ` the sender.`);
+      await defaultLock.acquire(this._context.cbsSession.cbsLock,
+        () => { return this._context.cbsSession.init(this._context.connection); });
+      const tokenObject = await this._context.tokenProvider.getToken(this.audience);
+      debug(`[${this._context.connectionId}] EH Sender: calling negotiateClaim for audience "${this.audience}".`);
+      // Negotitate the CBS claim.
+      await this._context.cbsSession.negotiateClaim(this.audience, this._context.connection, tokenObject);
       if (!this._session && !this._sender) {
-        this._session = await rheaPromise.createSession(this.client.connection);
+        this._session = await rheaPromise.createSession(this._context.connection);
         let options: rheaPromise.SenderOptions = {
           target: {
             address: this.address
@@ -107,7 +123,8 @@ export class EventHubSender extends EventEmitter {
         };
         this._sender = await rheaPromise.createSender(this._session, options);
         this.name = this._sender.name;
-        debug(`[${this.client.connection.options.id}] Negotatited claim for sender "${this.name}" with with partition "${this.partitionId}"`);
+        debug(`[${this._context.connectionId}] Negotatited claim for sender "${this.name}" with with partition` +
+          ` "${this.partitionId}"`);
       }
 
       this._ensureTokenRenewal();
@@ -120,17 +137,17 @@ export class EventHubSender extends EventEmitter {
    * Sends the given message, with the given options on this link
    *
    * @method send
-   * @param {any} data                    Message to send.  Will be sent as UTF8-encoded JSON string.
-   * @param {string} [partitionKey]       Partition key - sent as x-opt-partition-key, and will hash to a partition ID.
+   * @param {any} data               Message to send.  Will be sent as UTF8-encoded JSON string.
+   * @param {string} [partitionKey]  Partition key - sent as x-opt-partition-key, and will hash to a partitionId.
    * @returns {any}
    */
   send(data: EventData, partitionKey?: string): any {
-    if (!data || (data && typeof data !== 'object')) {
-      throw new Error('data is required and it must be of type object.');
+    if (!data || (data && typeof data !== "object")) {
+      throw new Error("data is required and it must be of type object.");
     }
 
-    if (partitionKey && typeof partitionKey !== 'string') {
-      throw new Error('partitionKey must be of type string');
+    if (partitionKey && typeof partitionKey !== "string") {
+      throw new Error("partitionKey must be of type string");
     }
 
     if (!this._session && !this._sender) {
@@ -142,29 +159,29 @@ export class EventHubSender extends EventEmitter {
       if (!message.message_annotations) message.message_annotations = {};
       message.message_annotations[Constants.partitionKey] = partitionKey;
     }
-    debug(`[${this.client.connection.options.id}] Sender "${this.name}", sending message: \n`, message);
+    debug(`[${this._context.connectionId}] Sender "${this.name}", sending message: \n`, message);
     return this._sender.send(message);
   }
 
   /**
    * Send a batch of EventData to the EventHub.
    * @param {Array<EventData>} datas  An array of EventData objects to be sent in a Batch message.
-   * @param {string} [partitionKey]   Partition key - sent as x-opt-partition-key, and will hash to a partition ID.
+   * @param {string} [partitionKey]   Partition key - sent as x-opt-partition-key, and will hash to a partitionId.
    * @returns {any}
    */
   sendBatch(datas: EventData[], partitionKey?: string): any {
     if (!datas || (datas && !Array.isArray(datas))) {
-      throw new Error('data is required and it must be an Array.');
+      throw new Error("data is required and it must be an Array.");
     }
 
-    if (partitionKey && typeof partitionKey !== 'string') {
-      throw new Error('partitionKey must be of type string');
+    if (partitionKey && typeof partitionKey !== "string") {
+      throw new Error("partitionKey must be of type string");
     }
 
     if (!this._session && !this._sender) {
       throw new Error("amqp sender is not present. Hence cannot send the message.");
     }
-    debug(`[${this.client.connection.options.id}] Sender "${this.name}", trying to send EventData[].`, datas);
+    debug(`[${this._context.connectionId}] Sender "${this.name}", trying to send EventData[].`, datas);
     let messages: AmqpMessage[] = [];
     // Convert EventData to AmqpMessage.
     for (let i = 0; i < datas.length; i++) {
@@ -192,12 +209,14 @@ export class EventHubSender extends EventEmitter {
     }
     // Finally encode the envelope (batch message).
     const encodedBatchMessage = rhea.message.encode(batchMessage);
-    debug(`[${this.client.connection.options.id}] Sender "${this.name}", sending encoded batch message.`, encodedBatchMessage);
+    debug(`[${this._context.connectionId}] Sender "${this.name}", ` +
+      `sending encoded batch message.`, encodedBatchMessage);
     return this._sender.send(encodedBatchMessage, undefined, 0x80013700);
   }
 
   /**
-   * "Unlink" this sender, closing the link and resolving when that operation is complete. Leaves the underlying connection/session open.
+   * "Unlink" this sender, closing the link and resolving when that operation is complete.
+   * Leaves the underlying connection/session open.
    * @method close
    * @return {Promise<void>}
    */
@@ -205,12 +224,12 @@ export class EventHubSender extends EventEmitter {
     try {
       await this._sender.detach();
       this.removeAllListeners();
-      delete this.client.senders[this.name!];
+      delete this._context.senders[this.name!];
       debug(`Deleted the sender "${this.name!}" from the client cache.`);
       this._sender = undefined;
       this._session = undefined;
       clearTimeout(this._tokenRenewalTimer as NodeJS.Timer);
-      debug(`[${this.client.connection.options.id}] Sender "${this.name}" closed.`);
+      debug(`[${this._context.connectionId}] Sender "${this.name}" closed.`);
     } catch (err) {
       return Promise.reject(err);
     }
@@ -221,11 +240,11 @@ export class EventHubSender extends EventEmitter {
    * @returns {void}
    */
   private _ensureTokenRenewal(): void {
-    const tokenValidTimeInSeconds = this.client.tokenProvider.tokenValidTimeInSeconds;
-    const tokenRenewalMarginInSeconds = this.client.tokenProvider.tokenRenewalMarginInSeconds;
+    const tokenValidTimeInSeconds = this._context.tokenProvider.tokenValidTimeInSeconds;
+    const tokenRenewalMarginInSeconds = this._context.tokenProvider.tokenRenewalMarginInSeconds;
     const nextRenewalTimeout = (tokenValidTimeInSeconds - tokenRenewalMarginInSeconds) * 1000;
     this._tokenRenewalTimer = setTimeout(async () => await this.init(), nextRenewalTimeout);
-    debug(`[${this.client.connection.options.id}] Sender "${this.name}", has next token renewal in ${nextRenewalTimeout / 1000} seconds ` +
-      `@(${new Date(Date.now() + nextRenewalTimeout).toString()}).`);
+    debug(`[${this._context.connectionId}] Sender "${this.name}", has next token renewal in ` +
+      `${nextRenewalTimeout / 1000} seconds @(${new Date(Date.now() + nextRenewalTimeout).toString()}).`);
   }
 }

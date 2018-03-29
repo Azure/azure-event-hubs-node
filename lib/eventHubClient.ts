@@ -13,7 +13,6 @@ import { SasTokenProvider } from "./auth/sas";
 import { AadTokenProvider } from "./auth/aad";
 import { ManagementClient, EventHubPartitionRuntimeInformation, EventHubRuntimeInformation } from "./managementClient";
 import { CbsClient } from "./cbs";
-import { defaultLock } from "./util/utils";
 import EventPosition from "./eventPosition";
 const debug = debugModule("azure:event-hubs:client");
 
@@ -43,21 +42,60 @@ export interface ReceiveOptions {
   enableReceiverRuntimeMetric?: boolean;
 }
 
+/**
+ * @interface ConnectionContext
+ * Provides contextual information like the underlying amqp connection, cbs session, management session,
+ * tokenProvider, senders, receivers, etc. about the EventHub client.
+ */
+export interface ConnectionContext {
+  /**
+   * @property {ConnectionConfig} config The EventHub connection config that is created after parsing the connection string.
+   */
+  config: ConnectionConfig;
+  /**
+   * @property {any} [connection] The underlying AMQP connection.
+   */
+  connection?: any;
+  /**
+   * @property {string} [connectionId] The amqp connection id that uniquely identifies the connection within a process.
+   */
+  connectionId?: string;
+  /**
+   * @property {TokenProvider} tokenProvider The TokenProvider to be used for getting tokens for authentication for the EventHub client.
+   */
+  tokenProvider: TokenProvider;
+  /**
+   * @property {Dictionary<EventHubReceiver<} receivers A dictionary of the EventHub Receivers associated with this client.
+   */
+  receivers: { [x: string]: EventHubReceiver };
+  /**
+   * @property {Dictionary<EventHubSender>} senders A dictionary of the EventHub Senders associated with this client.
+   */
+  senders: { [x: string]: EventHubSender };
+  /**
+   * @property {ManagementClient} managementSession A reference to the management session ($management endpoint) on
+   * the underlying amqp connection for the EventHub Client.
+   */
+  managementSession: ManagementClient;
+  /**
+   * @property {CbsClient} cbsSession A reference to the cbs session ($cbs endpoint) on the underlying
+   * the amqp connection for the EventHub Client.
+   */
+  cbsSession: CbsClient;
+}
+
 
 /**
  * @class EventHubClient
  * Describes the EventHub client.
  */
 export class EventHubClient {
-  config: ConnectionConfig;
-  tokenProvider: TokenProvider;
-  connection?: any;
-  connectionId?: string;
   userAgent: string = "/js-event-hubs";
-  receivers: { [x: string]: EventHubReceiver };
-  senders: { [x: string]: EventHubSender };
-  private _managementClient: ManagementClient;
-  private _cbsClient: CbsClient;
+  private _context: ConnectionContext;
+  /**
+   * @property {string} [connectionId] The amqp connection id that uniquely identifies the connection within a process.
+   */
+  connectionId?: string;
 
   /**
    * Instantiate a client pointing to the Event Hub given by this configuration.
@@ -69,16 +107,18 @@ export class EventHubClient {
    */
   constructor(config: ConnectionConfig, tokenProvider?: TokenProvider) {
     ConnectionConfig.validate(config);
-    this.config = config;
+    this.userAgent = "/js-event-hubs";
     if (!tokenProvider) {
       tokenProvider = new SasTokenProvider(config.endpoint, config.sharedAccessKeyName, config.sharedAccessKey);
     }
-    this.tokenProvider = tokenProvider;
-    this.userAgent = "/js-event-hubs";
-    this._managementClient = new ManagementClient(this.config.entityPath as string);
-    this._cbsClient = new CbsClient();
-    this.senders = {};
-    this.receivers = {};
+    this._context = {
+      config: config,
+      tokenProvider: tokenProvider,
+      cbsSession: new CbsClient(),
+      managementSession: new ManagementClient(config.entityPath!),
+      senders: {},
+      receivers: {}
+    }
   }
 
   /**
@@ -89,25 +129,25 @@ export class EventHubClient {
    */
   async close(): Promise<any> {
     try {
-      if (this.connection) {
+      if (this._context.connection) {
         // Close all the senders.
-        for (let sender of Object.values(this.senders)) {
+        for (let sender of Object.values(this._context.senders)) {
           await sender.close();
         }
         // Close all the receivers.
-        for (let receiver of Object.values(this.receivers)) {
+        for (let receiver of Object.values(this._context.receivers)) {
           await receiver.close();
         }
         // Close the cbs session;
-        await this._cbsClient.close();
+        await this._context.cbsSession.close();
         // Close the management session
-        await this._managementClient.close();
-        await this.connection.close();
-        debug(`Closed the amqp connection "${this.connection.options.id}" on the client.`);
-        this.connection = undefined;
+        await this._context.managementSession.close();
+        await this._context.connection.close();
+        debug(`Closed the amqp connection "${this._context.connectionId}" on the client.`);
+        this._context.connection = undefined;
       }
     } catch (err) {
-      const msg = `An error occurred while closing the connection "${this.connection.options.id}": ${JSON.stringify(err)}`;
+      const msg = `An error occurred while closing the connection "${this._context.connectionId}": ${JSON.stringify(err)}`;
       debug(msg);
       return Promise.reject(msg);
     }
@@ -124,22 +164,12 @@ export class EventHubClient {
       throw new Error("'partitionId' is a required parameter and must be of type: 'string' | 'number'.");
     }
     try {
-      let ehSender = new EventHubSender(this, partitionId);
       // Establish the amqp connection if it does not exist.
       await this._open();
-      // Acquire the lock and establish a cbs session if it does not exist on the connection. Although node.js
-      // is single threaded, we need a locking mechanism to ensure that a race condition does not happen while
-      // creating a shared resource (in this case the cbs session, since we want to have exactly 1 cbs session
-      // per connection).
-      debug(`Acquiring lock: ${this._cbsClient.cbsLock} for creating the cbs session while creating the sender.`);
-      await defaultLock.acquire(this._cbsClient.cbsLock, () => { return this._cbsClient.init(this.connection); });
-      const tokenObject = await this.tokenProvider.getToken(ehSender.audience);
-      debug(`[${this.connection.options.id}] EH Sender: calling negotiateClaim for audience "${ehSender.audience}"`);
-      // Negotitate the CBS claim.
-      await this._cbsClient.negotiateClaim(ehSender.audience, this.connection, tokenObject);
+      let ehSender = new EventHubSender(this._context, partitionId);
       // Initialize the sender.
       await ehSender.init();
-      this.senders[ehSender.name!] = ehSender;
+      this._context.senders[ehSender.name!] = ehSender;
       return ehSender;
     } catch (err) {
       return Promise.reject(err);
@@ -169,18 +199,12 @@ export class EventHubClient {
     }
 
     try {
-      let ehReceiver = new EventHubReceiver(this, partitionId, options);
       // Establish the amqp connection if it does not exist.
       await this._open();
-      // Acquire the lock and establish a cbs session if it does not exist on the connection.
-      await defaultLock.acquire(this._cbsClient.cbsLock, () => { return this._cbsClient.init(this.connection); });
-      const tokenObject = await this.tokenProvider.getToken(ehReceiver.audience);
-      debug(`[${this.connection.options.id}] EH Sender: calling negotiateClaim for audience "${ehReceiver.audience}"`);
-      // Negotitate the CBS claim.
-      await this._cbsClient.negotiateClaim(ehReceiver.audience, this.connection, tokenObject);
+      let ehReceiver = new EventHubReceiver(this._context, partitionId, options);
       // Initialize the receiver.
       await ehReceiver.init();
-      this.receivers[ehReceiver.name!] = ehReceiver;
+      this._context.receivers[ehReceiver.name!] = ehReceiver;
       return ehReceiver;
     } catch (err) {
       return Promise.reject(err);
@@ -195,7 +219,7 @@ export class EventHubClient {
   async getHubRuntimeInformation(): Promise<EventHubRuntimeInformation> {
     try {
       await this._open();
-      return await this._managementClient.getHubRuntimeInformation(this.connection);
+      return await this._context.managementSession.getHubRuntimeInformation(this._context.connection);
     } catch (err) {
       return Promise.reject(err);
     }
@@ -223,7 +247,7 @@ export class EventHubClient {
   async getPartitionInformation(partitionId: string | number): Promise<EventHubPartitionRuntimeInformation> {
     try {
       await this._open();
-      return await this._managementClient.getPartitionInformation(this.connection, partitionId);
+      return await this._context.managementSession.getPartitionInformation(this._context.connection, partitionId);
     } catch (err) {
       return Promise.reject(err);
     }
@@ -241,12 +265,12 @@ export class EventHubClient {
     if (useSaslPlain && typeof useSaslPlain !== "boolean") {
       throw new Error("'useSaslPlain' must be of type 'boolean'.");
     }
-    if (!this.connection) {
+    if (!this._context.connection) {
       const connectOptions: rheaPromise.ConnectionOptions = {
         transport: Constants.TLS,
-        host: this.config.host,
-        hostname: this.config.host,
-        username: this.config.sharedAccessKeyName,
+        host: this._context.config.host,
+        hostname: this._context.config.host,
+        username: this._context.config.sharedAccessKeyName,
         port: 5671,
         reconnect_limit: 100,
         properties: {
@@ -258,11 +282,13 @@ export class EventHubClient {
         }
       };
       if (useSaslPlain) {
-        connectOptions.password = this.config.sharedAccessKey;
+        connectOptions.password = this._context.config.sharedAccessKey;
       }
       debug(`Dialling the amqp connection with options.`, connectOptions);
-      this.connection = await rheaPromise.connect(connectOptions);
-      debug(`Successfully established the amqp connection "${this.connection.options.id}".`);
+      this._context.connection = await rheaPromise.connect(connectOptions);
+      this._context.connectionId = this._context.connection.options.id;
+      this.connectionId = this._context.connectionId;
+      debug(`Successfully established the amqp connection "${this._context.connectionId}".`);
     }
   }
 
