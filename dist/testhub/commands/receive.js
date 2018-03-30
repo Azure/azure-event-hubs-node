@@ -49,6 +49,7 @@ async function handler(argv) {
         let partitionIds = argv.partitions;
         const consumerGroup = argv.consumer;
         const offset = argv.offset;
+        const duration = argv.duration;
         let client;
         let connectionString = argv.connStr;
         if (!connectionString) {
@@ -64,21 +65,31 @@ async function handler(argv) {
             partitionIds = await client.getPartitionIds();
         }
         console.log("PartitionIds in the eventhub '%s' are: ", argv.hub, partitionIds);
-        for (let id of partitionIds) {
-            let receiver = await client.createReceiver(id, { consumerGroup: consumerGroup, eventPosition: lib_1.EventPosition.fromOffset(offset, true) });
-            console.log(`Created Receiver: "${receiver.name}" for partition: "${id}" in consumer group: "${consumerGroup}" in event hub "${argv.hub}".`);
-            receiver.on("message", (m) => {
-                if (m.body) {
-                    console.log("----------------------------------------------------------");
-                    console.log("[Receiver - %s]", receiver.name);
-                    console.log("EnqueuedTime - %s", m.enqueuedTimeUtc.toString());
-                    console.log("Received message body - ", m.body.toString());
-                }
-                if (argv.fullEventData) {
-                    console.log("Corresponding EventData object: %o", m);
-                }
-            });
-            console.log(`Attached message handler for receiver - "${receiver.name}"`);
+        if (duration) {
+            console.log(">>>>>>>>>>>> Performance benchmark mode. <<<<<<<<<<<<<<<<");
+            console.log("Will be receiving messages only from partition: '0'.");
+            let receiver = await client.createReceiver("0", { consumerGroup: consumerGroup, eventPosition: lib_1.EventPosition.fromOffset(offset, true) });
+            console.log(`Created Receiver: "${receiver.name}" for partition: "0" in consumer group: "${consumerGroup}" in event hub "${argv.hub}".`);
+            let datas = await receiver.receive(500000, duration);
+            console.log(`Received ${datas.length} messages in ${duration} seconds @ ${Math.floor(datas.length / duration)} messages/second.`);
+        }
+        else {
+            for (let id of partitionIds) {
+                let receiver = await client.createReceiver(id, { consumerGroup: consumerGroup, eventPosition: lib_1.EventPosition.fromOffset(offset, true) });
+                console.log(`Created Receiver: "${receiver.name}" for partition: "${id}" in consumer group: "${consumerGroup}" in event hub "${argv.hub}".`);
+                receiver.on("message", (m) => {
+                    if (m.body) {
+                        console.log("----------------------------------------------------------");
+                        console.log("[Receiver - %s]", receiver.name);
+                        console.log("EnqueuedTime - %s", m.enqueuedTimeUtc.toString());
+                        console.log("Received message body - ", m.body.toString());
+                    }
+                    if (argv.fullEventData) {
+                        console.log("Corresponding EventData object: %o", m);
+                    }
+                });
+                console.log(`Attached message handler for receiver - "${receiver.name}"`);
+            }
         }
     }
     catch (err) {

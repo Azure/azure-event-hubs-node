@@ -177,7 +177,7 @@ class EventProcessorHost extends events_1.EventEmitter {
         }
         const rcvrOptions = { consumerGroup: this._consumerGroup, eventPosition: eventPosition };
         const receiver = await this._eventHubClient.createReceiver(partitionId, rcvrOptions);
-        debug(`[${this._eventHubClient.connection.options.id}] Attaching receiver "${receiver.name}" ` +
+        debug(`[${this._eventHubClient.connectionId}] Attaching receiver "${receiver.name}" ` +
             `for partition "${partitionId}" with offset: ${(checkpoint ? checkpoint.offset : "None")}`);
         this.emit(EventProcessorHost.opened, context);
         this._receiverByPartition[partitionId] = receiver;
@@ -193,7 +193,7 @@ class EventProcessorHost extends events_1.EventEmitter {
         if (receiver) {
             delete this._receiverByPartition[partitionId];
             await receiver.close();
-            debug(`[${this._eventHubClient.connection.options.id}] Closed the receiver "${receiver.name}".`);
+            debug(`[${this._eventHubClient.connectionId}] Closed the receiver "${receiver.name}".`);
             this.emit(EventProcessorHost.closed, context, reason);
         }
     }

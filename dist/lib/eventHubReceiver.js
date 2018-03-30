@@ -8,7 +8,8 @@ const rheaPromise = require("./rhea-promise");
 const errors = require("./errors");
 const Constants = require("./util/constants");
 const events_1 = require("events");
-const eventData_1 = require("./eventData");
+const _1 = require(".");
+const utils_1 = require("./util/utils");
 const debug = debugModule("azure:event-hubs:receiver");
 /**
  * Describes the EventHubReceiver that will receive event data from EventHub.
@@ -34,7 +35,7 @@ class EventHubReceiver extends events_1.EventEmitter {
      * `EventPosition.withCustomFilter()` should be used if you want more fine-grained control of the filtering.
      * See https://github.com/Azure/amqpnetlite/wiki/Azure%20Service%20Bus%20Event%20Hubs for details.
      */
-    constructor(client, partitionId, options) {
+    constructor(context, partitionId, options) {
         super();
         /**
          * @property {number} [prefetchCount] The number of messages that the receiver can fetch/receive initially. Defaults to 500.
@@ -46,11 +47,11 @@ class EventHubReceiver extends events_1.EventEmitter {
         this.receiverRuntimeMetricEnabled = false;
         if (!options)
             options = {};
-        this.client = client;
+        this._context = context;
         this.partitionId = partitionId;
         this.consumerGroup = options.consumerGroup ? options.consumerGroup : Constants.defaultConsumerGroup;
-        this.address = `${this.client.config.entityPath}/ConsumerGroups/${this.consumerGroup}/Partitions/${this.partitionId}`;
-        this.audience = `${this.client.config.endpoint}${this.address}`;
+        this.address = `${this._context.config.entityPath}/ConsumerGroups/${this.consumerGroup}/Partitions/${this.partitionId}`;
+        this.audience = `${this._context.config.endpoint}${this.address}`;
         this.prefetchCount = options.prefetchCount !== undefined && options.prefetchCount !== null ? options.prefetchCount : 500;
         this.epoch = options.epoch;
         this.options = options;
@@ -59,7 +60,7 @@ class EventHubReceiver extends events_1.EventEmitter {
             paritionId: `${partitionId}`
         };
         const onMessage = (context) => {
-            const evData = eventData_1.EventData.fromAmqpMessage(context.message);
+            const evData = _1.EventData.fromAmqpMessage(context.message);
             this.emit(Constants.message, evData);
         };
         const onError = (context) => {
@@ -96,9 +97,15 @@ class EventHubReceiver extends events_1.EventEmitter {
      */
     async init() {
         try {
+            // Acquire the lock and establish a cbs session if it does not exist on the connection.
+            await utils_1.defaultLock.acquire(this._context.cbsSession.cbsLock, () => { return this._context.cbsSession.init(this._context.connection); });
+            const tokenObject = await this._context.tokenProvider.getToken(this.audience);
+            debug(`[${this._context.connectionId}] EH Receiver: calling negotiateClaim for audience "${this.audience}"`);
+            // Negotitate the CBS claim.
+            await this._context.cbsSession.negotiateClaim(this.audience, this._context.connection, tokenObject);
             if (!this._session && !this._receiver) {
                 let rcvrOptions = {
-                    autoaccept: false,
+                    //autoaccept: false,
                     source: {
                         address: this.address
                     },
@@ -121,11 +128,11 @@ class EventHubReceiver extends events_1.EventEmitter {
                         };
                     }
                 }
-                this._session = await rheaPromise.createSession(this.client.connection);
+                this._session = await rheaPromise.createSession(this._context.connection);
                 this._receiver = await rheaPromise.createReceiver(this._session, rcvrOptions);
                 this.name = this._receiver.name;
-                debug(`[${this.client.connection.options.id}] Receiver "${this.name}" created with receiver options.`, rcvrOptions);
-                debug(`[${this.client.connection.options.id}] Negotatited claim for receiver "${this.name}" with with partition "${this.partitionId}"`);
+                debug(`[${this._context.connectionId}] Receiver "${this.name}" created with receiver options.`, rcvrOptions);
+                debug(`[${this._context.connectionId}] Negotatited claim for receiver "${this.name}" with with partition "${this.partitionId}"`);
             }
             this._ensureTokenRenewal();
         }
@@ -170,6 +177,7 @@ class EventHubReceiver extends events_1.EventEmitter {
                 const onReceiveMessage = (data) => {
                     if (!timeOver && count <= maxMessageCount) {
                         count++;
+                        // console.log(count);
                         eventDatas.push(data);
                     }
                     if (count === maxMessageCount) {
@@ -201,12 +209,12 @@ class EventHubReceiver extends events_1.EventEmitter {
             // or can I directly close the session which will take care of closing the receiver as well.
             await this._receiver.detach();
             this.removeAllListeners();
-            delete this.client.receivers[this.name];
+            delete this._context.receivers[this.name];
             debug(`Deleted the receiver "${this.name}" from the client cache.`);
             this._receiver = undefined;
             this._session = undefined;
             clearTimeout(this._tokenRenewalTimer);
-            debug(`[${this.client.connection.options.id}] Receiver "${this.name}" has been closed.`);
+            debug(`[${this._context.connectionId}] Receiver "${this.name}" has been closed.`);
         }
         catch (err) {
             return Promise.reject(err);
@@ -216,11 +224,11 @@ class EventHubReceiver extends events_1.EventEmitter {
      * Ensures that the token is renewed within the predfiend renewal margin.
      */
     _ensureTokenRenewal() {
-        const tokenValidTimeInSeconds = this.client.tokenProvider.tokenValidTimeInSeconds;
-        const tokenRenewalMarginInSeconds = this.client.tokenProvider.tokenRenewalMarginInSeconds;
+        const tokenValidTimeInSeconds = this._context.tokenProvider.tokenValidTimeInSeconds;
+        const tokenRenewalMarginInSeconds = this._context.tokenProvider.tokenRenewalMarginInSeconds;
         const nextRenewalTimeout = (tokenValidTimeInSeconds - tokenRenewalMarginInSeconds) * 1000;
         this._tokenRenewalTimer = setTimeout(async () => await this.init(), nextRenewalTimeout);
-        debug(`[${this.client.connection.options.id}] Receiver "${this.name}", has next token renewal in ${nextRenewalTimeout / 1000} seconds ` +
+        debug(`[${this._context.connectionId}] Receiver "${this.name}", has next token renewal in ${nextRenewalTimeout / 1000} seconds ` +
             `@(${new Date(Date.now() + nextRenewalTimeout).toString()}).`);
     }
 }

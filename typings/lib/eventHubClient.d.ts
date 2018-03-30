@@ -1,7 +1,8 @@
 import { ApplicationTokenCredentials, DeviceTokenCredentials, UserTokenCredentials, MSITokenCredentials } from "ms-rest-azure";
 import { EventHubReceiver, EventHubSender, ConnectionConfig } from ".";
 import { TokenProvider } from "./auth/token";
-import { EventHubPartitionRuntimeInformation, EventHubRuntimeInformation } from "./managementClient";
+import { ManagementClient, EventHubPartitionRuntimeInformation, EventHubRuntimeInformation } from "./managementClient";
+import { CbsClient } from "./cbs";
 import EventPosition from "./eventPosition";
 export interface ReceiveOptions {
     /**
@@ -29,23 +30,61 @@ export interface ReceiveOptions {
     enableReceiverRuntimeMetric?: boolean;
 }
 /**
+ * @interface ConnectionContext
+ * Provides contextual information like the underlying amqp connection, cbs session, management session,
+ * tokenProvider, senders, receivers, etc. about the EventHub client.
+ */
+export interface ConnectionContext {
+    /**
+     * @property {ConnectionConfig} config The EventHub connection config that is created after parsing the connection string.
+     */
+    config: ConnectionConfig;
+    /**
+     * @property {any} [connection] The underlying AMQP connection.
+     */
+    connection?: any;
+    /**
+     * @property {string} [connectionId] The amqp connection id that uniquely identifies the connection within a process.
+     */
+    connectionId?: string;
+    /**
+     * @property {TokenProvider} tokenProvider The TokenProvider to be used for getting tokens for authentication for the EventHub client.
+     */
+    tokenProvider: TokenProvider;
+    /**
+     * @property {Dictionary<EventHubReceiver<} receivers A dictionary of the EventHub Receivers associated with this client.
+     */
+    receivers: {
+        [x: string]: EventHubReceiver;
+    };
+    /**
+     * @property {Dictionary<EventHubSender>} senders A dictionary of the EventHub Senders associated with this client.
+     */
+    senders: {
+        [x: string]: EventHubSender;
+    };
+    /**
+     * @property {ManagementClient} managementSession A reference to the management session ($management endpoint) on
+     * the underlying amqp connection for the EventHub Client.
+     */
+    managementSession: ManagementClient;
+    /**
+     * @property {CbsClient} cbsSession A reference to the cbs session ($cbs endpoint) on the underlying
+     * the amqp connection for the EventHub Client.
+     */
+    cbsSession: CbsClient;
+}
+/**
  * @class EventHubClient
  * Describes the EventHub client.
  */
 export declare class EventHubClient {
-    config: ConnectionConfig;
-    tokenProvider: TokenProvider;
-    connection?: any;
-    connectionId?: string;
     userAgent: string;
-    receivers: {
-        [x: string]: EventHubReceiver;
-    };
-    senders: {
-        [x: string]: EventHubSender;
-    };
-    private _managementClient;
-    private _cbsClient;
+    private _context;
+    /**
+     * @property {string} [connectionId] The amqp connection id that uniquely identifies the connection within a process.
+     */
+    connectionId?: string;
     /**
      * Instantiate a client pointing to the Event Hub given by this configuration.
      *

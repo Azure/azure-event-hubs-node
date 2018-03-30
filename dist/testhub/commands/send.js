@@ -12,9 +12,14 @@ exports.builder = {
     },
     s: {
         alias: "msg-size",
-        describe: "size in bytes for each event",
+        describe: "size in bytes for each event.",
         default: 256,
         number: true
+    },
+    p: {
+        alias: "partition-id",
+        describe: "The partitionId that the sender should send the event to.",
+        string: true,
     }
 };
 function validateArgs(argv) {
@@ -39,26 +44,47 @@ async function handler(argv) {
             connectionString = `Endpoint=${address};SharedAccessKeyName=${argv.keyName};SharedAccessKey=${argv.key}`;
         }
         client = lib_1.EventHubClient.createFromConnectionString(connectionString, argv.hub);
-        const sender = await client.createSender();
-        console.log(`Created Sender - "${sender.name}".`);
+        let sender;
+        const duration = argv.duration;
         const msgCount = argv.msgCount;
         const msgSize = argv.msgSize;
+        const partitionId = argv.partitionId;
         const msgBody = Buffer.from("Z".repeat(msgSize));
         const obj = { body: msgBody };
-        if (msgCount > 1) {
+        if (duration) {
+            console.log(">>>>>>>>>>>> Performance benchmark mode. <<<<<<<<<<<<<<<<");
+            console.log("Will be sending messages by default to partition '0' or to a partition you specify via the -p switch.");
+            sender = await client.createSender(partitionId || "0");
+            console.log(`Created Sender - "${sender.name}".`);
+            let counter = 0;
+            console.log("Will be sending messages for %d seconds.", duration);
+            const durationMS = duration * 1000;
+            const startTime = Date.now();
+            while ((Date.now() - startTime) < durationMS) {
+                await sender.send({ body: obj });
+                counter++;
+                console.log("- %d", counter);
+            }
+            console.log(">>>> Sent %d messages in %d seconds @ %d messages/second.", counter, duration, Math.floor(counter / duration));
+        }
+        else if (msgCount > 1) {
             let datas = [];
             let count = 0;
             for (let i = 0; i < msgCount; i++) {
                 datas.push(obj);
                 count++;
             }
+            sender = await client.createSender(partitionId);
+            console.log(`Created Sender - "${sender.name}".`);
             console.log(`Created a batch message where ${datas.length} messages are grouped together and the size of each message is: ${msgBody.length}.`);
             sender.sendBatch(datas);
             console.log("[Sender - %s] Number of messages sent in a batch: ", sender.name, count);
         }
         else {
+            sender = await client.createSender(partitionId);
+            console.log(`Created Sender - "${sender.name}".`);
             console.log(`Created the message of specified size: ${msgBody.length}.`);
-            sender.send({ body: obj });
+            await sender.send({ body: obj });
             console.log("[Sender - %s] sent the message.", sender.name);
         }
     }

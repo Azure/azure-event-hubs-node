@@ -22,4 +22,14 @@ exports.getNewAsyncLock = getNewAsyncLock;
  * @constant {AsyncLock} defaultLock The async lock instance with default settings.
  */
 exports.defaultLock = new AsyncLock();
+/**
+ * A wrapper for setTimeout that resolves a promise after t milliseconds.
+ * @param {number} t - The number of milliseconds to be delayed.
+ * @param {T} value - The value to be resolved with after a timeout of t milliseconds.
+ * @returns {Promise<T>} - Resolved promise
+ */
+function delay(t, value) {
+    return new Promise((resolve) => setTimeout(() => resolve(value), t));
+}
+exports.delay = delay;
 //# sourceMappingURL=utils.js.map

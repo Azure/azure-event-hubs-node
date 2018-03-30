@@ -1,7 +1,7 @@
 /// <reference types="node" />
 import { EventEmitter } from "events";
-import { EventData } from "./eventData";
-import { EventHubClient, ReceiveOptions } from ".";
+import { ReceiveOptions, EventData } from ".";
+import { ConnectionContext } from "./eventHubClient";
 /**
  * Represents the approximate receiver runtime information for a logical partition of an Event Hub.
  * @interface ReceiverRuntimeInfo
@@ -48,10 +48,6 @@ export declare class EventHubReceiver extends EventEmitter {
      */
     address: string;
     /**
-     * @property {EventHubClient} client The EventHub client to which the receiver belongs to.
-     */
-    client: EventHubClient;
-    /**
      * @property {string} audience The EventHub Receiver token audience.
      */
     audience: string;
@@ -83,6 +79,12 @@ export declare class EventHubReceiver extends EventEmitter {
      * @property {boolean} receiverRuntimeMetricEnabled Indicates whether receiver runtime metric is enabled. Default: false.
      */
     receiverRuntimeMetricEnabled: boolean;
+    /**
+     * @property {ConnectionContext} _context Provides relevant information about the amqp connection, cbs and $management sessions,
+     * token provider, sender and receivers.
+     * @private
+     */
+    private _context;
     /**
      * @property {any} [_receiver] The AMQP receiver link.
      * @private
@@ -117,7 +119,7 @@ export declare class EventHubReceiver extends EventEmitter {
      * `EventPosition.withCustomFilter()` should be used if you want more fine-grained control of the filtering.
      * See https://github.com/Azure/amqpnetlite/wiki/Azure%20Service%20Bus%20Event%20Hubs for details.
      */
-    constructor(client: EventHubClient, partitionId: string | number, options?: ReceiveOptions);
+    constructor(context: ConnectionContext, partitionId: string | number, options?: ReceiveOptions);
     /**
      * Creates a new AMQP receiver under a new AMQP session.
      * @returns {Promoise<void>}

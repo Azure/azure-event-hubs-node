@@ -1,6 +1,7 @@
 /// <reference types="node" />
 import { EventEmitter } from "events";
-import { EventHubClient, EventData } from ".";
+import { EventData } from ".";
+import { ConnectionContext } from "./eventHubClient";
 /**
  * Instantiates a new sender from the AMQP `Sender`. Used by `EventHubClient`.
  *
@@ -14,10 +15,6 @@ export declare class EventHubSender extends EventEmitter {
      */
     name?: string;
     /**
-     * @property {EventHubClient} client The EventHub client to which the sender belongs to.
-     */
-    client: EventHubClient;
-    /**
      * @property {string} [partitionId] The partitionId to which the sender wants to send the EventData.
      */
     partitionId?: string | number;
@@ -30,6 +27,12 @@ export declare class EventHubSender extends EventEmitter {
      */
     audience: string;
     /**
+     * @property {ConnectionContext} _context Provides relevant information about the amqp connection,
+     * cbs and $management sessions, token provider, sender and receivers.
+     * @private
+     */
+    private _context;
+    /**
      * @property {any} [_sender] The AMQP sender link.
      * @private
      */
@@ -40,7 +43,8 @@ export declare class EventHubSender extends EventEmitter {
      */
     private _session?;
     /**
-     * @property {NodeJS.Timer} _tokenRenewalTimer The token renewal timer that keeps track of when the EventHub Sender is due for token renewal.
+     * @property {NodeJS.Timer} _tokenRenewalTimer The token renewal timer that keeps track of when
+     * the EventHub Sender is due for token renewal.
      * @private
      */
     private _tokenRenewalTimer?;
@@ -50,7 +54,7 @@ export declare class EventHubSender extends EventEmitter {
      * @param {EventHubClient} client The EventHub client.
      * @param {string|number} [partitionId] The EventHub partition id to which the sender wants to send the event data.
      */
-    constructor(client: EventHubClient, partitionId?: string | number);
+    constructor(context: ConnectionContext, partitionId?: string | number);
     /**
      * Initializes the sender session on the connection.
      * @returns {Promoise<void>}
@@ -60,26 +64,34 @@ export declare class EventHubSender extends EventEmitter {
      * Sends the given message, with the given options on this link
      *
      * @method send
-     * @param {any} data                    Message to send.  Will be sent as UTF8-encoded JSON string.
-     * @param {string} [partitionKey]       Partition key - sent as x-opt-partition-key, and will hash to a partition ID.
-     * @returns {any}
+     * @param {any} data               Message to send.  Will be sent as UTF8-encoded JSON string.
+     * @param {string} [partitionKey]  Partition key - sent as x-opt-partition-key, and will hash to a partitionId.
+     * @returns {Promise<any>} Promise<any>
      */
-    send(data: EventData, partitionKey?: string): any;
+    send(data: EventData, partitionKey?: string): Promise<any>;
     /**
      * Send a batch of EventData to the EventHub.
      * @param {Array<EventData>} datas  An array of EventData objects to be sent in a Batch message.
-     * @param {string} [partitionKey]   Partition key - sent as x-opt-partition-key, and will hash to a partition ID.
-     * @returns {any}
+     * @param {string} [partitionKey]   Partition key - sent as x-opt-partition-key, and will hash to a partitionId.
+     * @return {Promise<any>} Promise<any>
      */
-    sendBatch(datas: EventData[], partitionKey?: string): any;
+    sendBatch(datas: EventData[], partitionKey?: string): Promise<any>;
     /**
-     * "Unlink" this sender, closing the link and resolving when that operation is complete. Leaves the underlying connection/session open.
+     * "Unlink" this sender, closing the link and resolving when that operation is complete.
+     * Leaves the underlying connection/session open.
      * @method close
-     * @return {Promise<void>}
+     * @return {Promise<void>} Promise<void>
      */
     close(): Promise<void>;
     /**
+     * Tries to send the message to EventHub if there is enough credit to send them.
+     * @param message The message to be sent to EventHub.
+     * @return {Promise<any>} Promise<any>
+     */
+    private _trySend(message, tag?, format?);
+    /**
      * Ensures that the token is renewed within the predfiend renewal margin.
+     * @private
      * @returns {void}
      */
     private _ensureTokenRenewal();
