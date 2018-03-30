@@ -200,7 +200,7 @@ export class EventHubReceiver extends EventEmitter {
       await this._context.cbsSession.negotiateClaim(this.audience, this._context.connection, tokenObject);
       if (!this._session && !this._receiver) {
         let rcvrOptions: rheaPromise.ReceiverOptions = {
-          autoaccept: false,
+          //autoaccept: false,
           source: {
             address: this.address
           },
@@ -273,6 +273,7 @@ export class EventHubReceiver extends EventEmitter {
         const onReceiveMessage = (data: EventData) => {
           if (!timeOver && count <= maxMessageCount) {
             count++;
+            // console.log(count);
             eventDatas.push(data);
           }
           if (count === maxMessageCount) {

@@ -119,7 +119,10 @@ export class EventHubSender extends EventEmitter {
         let options: rheaPromise.SenderOptions = {
           target: {
             address: this.address
-          }
+          },
+          // autosettle: false,
+          // snd_settle_mode: 0,
+          // rcv_settle_mode: 1
         };
         this._sender = await rheaPromise.createSender(this._session, options);
         this.name = this._sender.name;
@@ -139,86 +142,93 @@ export class EventHubSender extends EventEmitter {
    * @method send
    * @param {any} data               Message to send.  Will be sent as UTF8-encoded JSON string.
    * @param {string} [partitionKey]  Partition key - sent as x-opt-partition-key, and will hash to a partitionId.
-   * @returns {any}
+   * @returns {Promise<any>} Promise<any>
    */
-  send(data: EventData, partitionKey?: string): any {
-    if (!data || (data && typeof data !== "object")) {
-      throw new Error("data is required and it must be of type object.");
-    }
+  async send(data: EventData, partitionKey?: string): Promise<any> {
+    try {
+      if (!data || (data && typeof data !== "object")) {
+        new Error("data is required and it must be of type object.");
+      }
 
-    if (partitionKey && typeof partitionKey !== "string") {
-      throw new Error("partitionKey must be of type string");
-    }
+      if (partitionKey && typeof partitionKey !== "string") {
+        new Error("partitionKey must be of type string");
+      }
 
-    if (!this._session && !this._sender) {
-      throw new Error("amqp sender is not present. Hence cannot send the message.");
-    }
+      if (!this._session && !this._sender) {
+        new Error("amqp sender is not present. Hence cannot send the message.");
+      }
 
-    let message = EventData.toAmqpMessage(data);
-    if (partitionKey) {
-      if (!message.message_annotations) message.message_annotations = {};
-      message.message_annotations[Constants.partitionKey] = partitionKey;
+      let message = EventData.toAmqpMessage(data);
+      if (partitionKey) {
+        if (!message.message_annotations) message.message_annotations = {};
+        message.message_annotations[Constants.partitionKey] = partitionKey;
+      }
+      await this._trySend(message);
+    } catch (err) {
+      return Promise.reject(err);
     }
-    debug(`[${this._context.connectionId}] Sender "${this.name}", sending message: \n`, message);
-    return this._sender.send(message);
   }
 
   /**
    * Send a batch of EventData to the EventHub.
    * @param {Array<EventData>} datas  An array of EventData objects to be sent in a Batch message.
    * @param {string} [partitionKey]   Partition key - sent as x-opt-partition-key, and will hash to a partitionId.
-   * @returns {any}
+   * @return {Promise<any>} Promise<any>
    */
-  sendBatch(datas: EventData[], partitionKey?: string): any {
-    if (!datas || (datas && !Array.isArray(datas))) {
-      throw new Error("data is required and it must be an Array.");
-    }
-
-    if (partitionKey && typeof partitionKey !== "string") {
-      throw new Error("partitionKey must be of type string");
-    }
-
-    if (!this._session && !this._sender) {
-      throw new Error("amqp sender is not present. Hence cannot send the message.");
-    }
-    debug(`[${this._context.connectionId}] Sender "${this.name}", trying to send EventData[].`, datas);
-    let messages: AmqpMessage[] = [];
-    // Convert EventData to AmqpMessage.
-    for (let i = 0; i < datas.length; i++) {
-      let message = EventData.toAmqpMessage(datas[i]);
-      if (partitionKey) {
-        if (!message.message_annotations) message.message_annotations = {};
-        message.message_annotations[Constants.partitionKey] = partitionKey;
+  async sendBatch(datas: EventData[], partitionKey?: string): Promise<any> {
+    try {
+      if (!datas || (datas && !Array.isArray(datas))) {
+        throw new Error("data is required and it must be an Array.");
       }
-      messages[i] = message;
+
+      if (partitionKey && typeof partitionKey !== "string") {
+        throw new Error("partitionKey must be of type string");
+      }
+
+      if (!this._session && !this._sender) {
+        throw new Error("amqp sender is not present. Hence cannot send the message.");
+      }
+      debug(`[${this._context.connectionId}] Sender "${this.name}", trying to send EventData[].`, datas);
+      let messages: AmqpMessage[] = [];
+      // Convert EventData to AmqpMessage.
+      for (let i = 0; i < datas.length; i++) {
+        let message = EventData.toAmqpMessage(datas[i]);
+        if (partitionKey) {
+          if (!message.message_annotations) message.message_annotations = {};
+          message.message_annotations[Constants.partitionKey] = partitionKey;
+        }
+        messages[i] = message;
+      }
+      // Encode every amqp message and then convert every encoded message to amqp data section
+      let batchMessage: AmqpMessage = {
+        body: rhea.message.data_sections(messages.map(rhea.message.encode))
+      };
+      // Set message_annotations, application_properties and properties of the first message as
+      // that of the envelope (batch message).
+      if (messages[0].message_annotations) {
+        batchMessage.message_annotations = messages[0].message_annotations;
+      }
+      if (messages[0].application_properties) {
+        batchMessage.application_properties = messages[0].application_properties;
+      }
+      if (messages[0].properties) {
+        batchMessage.properties = messages[0].properties;
+      }
+      // Finally encode the envelope (batch message).
+      const encodedBatchMessage = rhea.message.encode(batchMessage);
+      debug(`[${this._context.connectionId}] Sender "${this.name}", ` +
+        `sending encoded batch message.`, encodedBatchMessage);
+      return await this._trySend(encodedBatchMessage, undefined, 0x80013700);
+    } catch (err) {
+      return Promise.reject(err);
     }
-    // Encode every amqp message and then convert every encoded message to amqp data section
-    let batchMessage: AmqpMessage = {
-      body: rhea.message.data_sections(messages.map(rhea.message.encode))
-    };
-    // Set message_annotations, application_properties and properties of the first message as
-    // that of the envelope (batch message).
-    if (messages[0].message_annotations) {
-      batchMessage.message_annotations = messages[0].message_annotations;
-    }
-    if (messages[0].application_properties) {
-      batchMessage.application_properties = messages[0].application_properties;
-    }
-    if (messages[0].properties) {
-      batchMessage.properties = messages[0].properties;
-    }
-    // Finally encode the envelope (batch message).
-    const encodedBatchMessage = rhea.message.encode(batchMessage);
-    debug(`[${this._context.connectionId}] Sender "${this.name}", ` +
-      `sending encoded batch message.`, encodedBatchMessage);
-    return this._sender.send(encodedBatchMessage, undefined, 0x80013700);
   }
 
   /**
    * "Unlink" this sender, closing the link and resolving when that operation is complete.
    * Leaves the underlying connection/session open.
    * @method close
-   * @return {Promise<void>}
+   * @return {Promise<void>} Promise<void>
    */
   async close(): Promise<void> {
     try {
@@ -236,7 +246,30 @@ export class EventHubSender extends EventEmitter {
   }
 
   /**
+   * Tries to send the message to EventHub if there is enough credit to send them.
+   * @param message The message to be sent to EventHub.
+   * @return {Promise<any>} Promise<any>
+   */
+  private _trySend(message: AmqpMessage, tag?: any, format?: number): Promise<any> {
+    debug(`[${this._context.connectionId}] Sender "${this.name}", credit ${this._sender.credit}, available ${this._sender.session.outgoing.available()}:`);
+    if (this._sender.sendable()) {
+      debug(`[${this._context.connectionId}] Sender "${this.name}", sending message: \n`, message);
+      return Promise.resolve(this._sender.send(message, tag, format));
+    } else {
+      debug(`[${this._context.connectionId}] Sender "${this.name}", not enough capacity to send messages. Will retry in 5 seconds.`);
+      //return delay(500000, this._trySend(message, tag, format));
+      return new Promise((resolve, reject) => {
+        setTimeout(() => {
+          debug(`[${this._context.connectionId}] Sender "${this.name}", timeout complete. Will try sending the message.`);
+          resolve(this._trySend(message, tag, format));
+        }, 5000);
+      });
+    }
+  }
+
+  /**
    * Ensures that the token is renewed within the predfiend renewal margin.
+   * @private
    * @returns {void}
    */
   private _ensureTokenRenewal(): void {

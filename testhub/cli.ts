@@ -37,6 +37,11 @@ yargs
     describe: "SAS key for the key-name.",
     string: true
   })
+  .option("d", {
+    alias: "duration",
+    describe: "The value must be in seconds. Send or receive messages for the specified duration. Useful for benchmark testing.",
+    number: true
+  })
   .conflicts({
     "c": ["a", "k", "v"]
   })
