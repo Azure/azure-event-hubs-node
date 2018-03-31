@@ -126,6 +126,8 @@ export class EventHubSender extends EventEmitter {
         };
         this._sender = await rheaPromise.createSender(this._session, options);
         this.name = this._sender.name;
+        console.log(this._sender.credit);
+        this._sender.credit = 10;
         debug(`[${this._context.connectionId}] Negotatited claim for sender "${this.name}" with with partition` +
           ` "${this.partitionId}"`);
       }
@@ -246,25 +248,53 @@ export class EventHubSender extends EventEmitter {
   }
 
   /**
-   * Tries to send the message to EventHub if there is enough credit to send them.
+   * Tries to send the message to EventHub if there is enough credit to send them
+   * and the circular buffer has available space to settle the message after sending them.
+   * 
+   * We have implemented a synchronous send over here. We shall be waiting for the message
+   * to be accepted or rejected and accordingly resolve or reject the promise.
+   * 
    * @param message The message to be sent to EventHub.
    * @return {Promise<any>} Promise<any>
    */
   private _trySend(message: AmqpMessage, tag?: any, format?: number): Promise<any> {
-    debug(`[${this._context.connectionId}] Sender "${this.name}", credit ${this._sender.credit}, available ${this._sender.session.outgoing.available()}:`);
-    if (this._sender.sendable()) {
-      debug(`[${this._context.connectionId}] Sender "${this.name}", sending message: \n`, message);
-      return Promise.resolve(this._sender.send(message, tag, format));
-    } else {
-      debug(`[${this._context.connectionId}] Sender "${this.name}", not enough capacity to send messages. Will retry in 5 seconds.`);
-      //return delay(500000, this._trySend(message, tag, format));
-      return new Promise((resolve, reject) => {
+    return new Promise((resolve, reject) => {
+      debug(`[${this._context.connectionId}] Sender "${this.name}", credit: ${this._sender.credit}, ` +
+        `available: ${this._sender.session.outgoing.available()}.`);
+      if (this._sender.sendable()) {
+        debug(`[${this._context.connectionId}] Sender "${this.name}", sending message: \n`, message);
+        const onAccepted = (context: rheaPromise.Context) => {
+          // Since we will be adding listener for accepted and rejected event every time
+          // we send a message, we need to remove listener for both the events.
+          // This will ensure duplicate listeners are not added for the same event.
+          this._sender.removeListener("accepted", onAccepted);
+          this._sender.removeListener("rejected", onRejected);
+          debug(`[${this._context.connectionId}] Sender "${this.name}", got event accepted.`);
+          resolve(context.delivery);
+        };
+        const onRejected = (context: rheaPromise.Context) => {
+          this._sender.removeListener("rejected", onRejected);
+          this._sender.removeListener("accepted", onAccepted);
+          debug(`[${this._context.connectionId}] Sender "${this.name}", got event accepted.`);
+          reject(errors.translate(context.delivery.remote_state.error));
+        };
+        this._sender.on("accepted", onAccepted);
+        this._sender.on("rejected", onRejected);
+        const delivery = this._sender.send(message, tag, format);
+        debug(`[${this._context.connectionId}] Sender "${this.name}", sent message with delivery id: ${delivery.id}`);
+      }
+      else {
+        // This case should technically not happen. rhea starts the sender credit with 1000 and the circular buffer with a size 
+        // of 2048. It refreshes the credit and replenishes the circular buffer capacity as it processes the message transfer.
+        // In case we end up here, we shall retry sending the message after 5 seconds. This should be a reasonable time for the 
+        // sender to be sendable again.
+        debug(`[${this._context.connectionId}] Sender "${this.name}", not enough capacity to send messages. Will retry in 5 seconds.`);
         setTimeout(() => {
           debug(`[${this._context.connectionId}] Sender "${this.name}", timeout complete. Will try sending the message.`);
           resolve(this._trySend(message, tag, format));
         }, 5000);
-      });
-    }
+      }
+    });
   }
 
   /**
