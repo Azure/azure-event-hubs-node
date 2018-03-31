@@ -78,6 +78,8 @@ class EventHubSender extends events_1.EventEmitter {
                 };
                 this._sender = await rheaPromise.createSender(this._session, options);
                 this.name = this._sender.name;
+                console.log(this._sender.credit);
+                this._sender.credit = 10;
                 debug(`[${this._context.connectionId}] Negotatited claim for sender "${this.name}" with with partition` +
                     ` "${this.partitionId}"`);
             }
@@ -199,21 +201,39 @@ class EventHubSender extends events_1.EventEmitter {
      * @return {Promise<any>} Promise<any>
      */
     _trySend(message, tag, format) {
-        debug(`[${this._context.connectionId}] Sender "${this.name}", credit ${this._sender.credit}, available ${this._sender.session.outgoing.available()}:`);
-        if (this._sender.sendable()) {
-            debug(`[${this._context.connectionId}] Sender "${this.name}", sending message: \n`, message);
-            return Promise.resolve(this._sender.send(message, tag, format));
-        }
-        else {
-            debug(`[${this._context.connectionId}] Sender "${this.name}", not enough capacity to send messages. Will retry in 5 seconds.`);
-            //return delay(500000, this._trySend(message, tag, format));
-            return new Promise((resolve, reject) => {
+        return new Promise((resolve, reject) => {
+            debug(`[${this._context.connectionId}] Sender "${this.name}", credit: ${this._sender.credit}, ` +
+                `available: ${this._sender.session.outgoing.available()}.`);
+            if (this._sender.sendable()) {
+                debug(`[${this._context.connectionId}] Sender "${this.name}", sending message: \n`, message);
+                const onAccepted = (context) => {
+                    // Since we will be adding listener for accepted and rejected event every time
+                    // we send a message, we need to remove listener for both the events.
+                    // This will ensure duplicate listeners are not added for the same event.
+                    this._sender.removeListener("accepted", onAccepted);
+                    this._sender.removeListener("rejected", onRejected);
+                    debug(`[${this._context.connectionId}] Sender "${this.name}", got event accepted.`);
+                    resolve(context.delivery);
+                };
+                const onRejected = (context) => {
+                    this._sender.removeListener("rejected", onRejected);
+                    this._sender.removeListener("accepted", onAccepted);
+                    debug(`[${this._context.connectionId}] Sender "${this.name}", got event accepted.`);
+                    reject(errors.translate(context.delivery.remote_state.error));
+                };
+                this._sender.on("accepted", onAccepted);
+                this._sender.on("rejected", onRejected);
+                const delivery = this._sender.send(message, tag, format);
+                debug(`[${this._context.connectionId}] Sender "${this.name}", sent message with delivery id: ${delivery.id}`);
+            }
+            else {
+                debug(`[${this._context.connectionId}] Sender "${this.name}", not enough capacity to send messages. Will retry in 5 seconds.`);
                 setTimeout(() => {
                     debug(`[${this._context.connectionId}] Sender "${this.name}", timeout complete. Will try sending the message.`);
                     resolve(this._trySend(message, tag, format));
                 }, 5000);
-            });
-        }
+            }
+        });
     }
     /**
      * Ensures that the token is renewed within the predfiend renewal margin.

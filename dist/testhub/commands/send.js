@@ -63,7 +63,7 @@ async function handler(argv) {
             while ((Date.now() - startTime) < durationMS) {
                 await sender.send({ body: obj });
                 counter++;
-                console.log("- %d", counter);
+                console.log("[Sender - %s] sent the message, count: %d.", sender.name, counter);
             }
             console.log(">>>> Sent %d messages in %d seconds @ %d messages/second.", counter, duration, Math.floor(counter / duration));
         }
