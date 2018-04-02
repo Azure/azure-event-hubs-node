@@ -183,10 +183,10 @@ export interface TerminusOptions {
 export interface ReceiverOptions extends LinkOptions {
     /**
      * @property {object} [prefetch]  A 'prefetch' window controlling the flow of messages over
-     * this receiver. Defaults to 500 if not specified. A value of 0 can be used to
+     * this receiver. Defaults to 1000 if not specified. A value of 0 can be used to
      * turn of automatic flow control and manage it directly.
      */
-    prefetch?: number;
+    credit_window?: number;
     /**
      * @property {boolean} [autoaccept] Whether received messages should be automatically accepted. Defaults to true.
      */

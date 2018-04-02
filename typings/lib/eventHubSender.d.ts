@@ -84,7 +84,12 @@ export declare class EventHubSender extends EventEmitter {
      */
     close(): Promise<void>;
     /**
-     * Tries to send the message to EventHub if there is enough credit to send them.
+     * Tries to send the message to EventHub if there is enough credit to send them
+     * and the circular buffer has available space to settle the message after sending them.
+     *
+     * We have implemented a synchronous send over here. We shall be waiting for the message
+     * to be accepted or rejected and accordingly resolve or reject the promise.
+     *
      * @param message The message to be sent to EventHub.
      * @return {Promise<any>} Promise<any>
      */

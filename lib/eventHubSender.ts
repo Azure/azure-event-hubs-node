@@ -119,10 +119,7 @@ export class EventHubSender extends EventEmitter {
         let options: rheaPromise.SenderOptions = {
           target: {
             address: this.address
-          },
-          // autosettle: false,
-          // snd_settle_mode: 0,
-          // rcv_settle_mode: 1
+          }
         };
         this._sender = await rheaPromise.createSender(this._session, options);
         this.name = this._sender.name;

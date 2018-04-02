@@ -122,7 +122,7 @@ export class EventHubReceiver extends EventEmitter {
    * @param {string} partitionId                               Partition ID from which to receive.
    * @param {ReceiveOptions} [options]                         Options for how you'd like to connect.
    * @param {string} [options.consumerGroup]                   Consumer group from which to receive.
-   * @param {number} [options.prefetchcount]                   The upper limit of events this receiver will
+   * @param {number} [options.prefetchCount]                   The upper limit of events this receiver will
    * actively receive regardless of whether a receive operation is pending.
    * @param {boolean} [options.enableReceiverRuntimeMetric]    Provides the approximate receiver runtime information
    * for a logical partition of an Event Hub if the value is true. Default false.
@@ -141,7 +141,7 @@ export class EventHubReceiver extends EventEmitter {
     this.consumerGroup = options.consumerGroup ? options.consumerGroup : Constants.defaultConsumerGroup;
     this.address = `${this._context.config.entityPath}/ConsumerGroups/${this.consumerGroup}/Partitions/${this.partitionId}`;
     this.audience = `${this._context.config.endpoint}${this.address}`;
-    this.prefetchCount = options.prefetchCount !== undefined && options.prefetchCount !== null ? options.prefetchCount : 500;
+    this.prefetchCount = options.prefetchCount !== undefined && options.prefetchCount !== null ? options.prefetchCount : 1000;
     this.epoch = options.epoch;
     this.options = options;
     this.receiverRuntimeMetricEnabled = options.enableReceiverRuntimeMetric || false;
@@ -200,11 +200,11 @@ export class EventHubReceiver extends EventEmitter {
       await this._context.cbsSession.negotiateClaim(this.audience, this._context.connection, tokenObject);
       if (!this._session && !this._receiver) {
         let rcvrOptions: rheaPromise.ReceiverOptions = {
-          //autoaccept: false,
+          autoaccept: true,
           source: {
             address: this.address
           },
-          prefetch: this.prefetchCount,
+          credit_window: this.prefetchCount,
         };
         if (this.epoch !== undefined && this.epoch !== null) {
           if (!rcvrOptions.properties) rcvrOptions.properties = {};

@@ -108,7 +108,7 @@ export declare class EventHubReceiver extends EventEmitter {
      * @param {string} partitionId                               Partition ID from which to receive.
      * @param {ReceiveOptions} [options]                         Options for how you'd like to connect.
      * @param {string} [options.consumerGroup]                   Consumer group from which to receive.
-     * @param {number} [options.prefetchcount]                   The upper limit of events this receiver will
+     * @param {number} [options.prefetchCount]                   The upper limit of events this receiver will
      * actively receive regardless of whether a receive operation is pending.
      * @param {boolean} [options.enableReceiverRuntimeMetric]    Provides the approximate receiver runtime information
      * for a logical partition of an Event Hub if the value is true. Default false.

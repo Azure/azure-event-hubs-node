@@ -74,7 +74,7 @@ class EventHubSender extends events_1.EventEmitter {
                 let options = {
                     target: {
                         address: this.address
-                    },
+                    }
                 };
                 this._sender = await rheaPromise.createSender(this._session, options);
                 this.name = this._sender.name;
@@ -196,7 +196,12 @@ class EventHubSender extends events_1.EventEmitter {
         }
     }
     /**
-     * Tries to send the message to EventHub if there is enough credit to send them.
+     * Tries to send the message to EventHub if there is enough credit to send them
+     * and the circular buffer has available space to settle the message after sending them.
+     *
+     * We have implemented a synchronous send over here. We shall be waiting for the message
+     * to be accepted or rejected and accordingly resolve or reject the promise.
+     *
      * @param message The message to be sent to EventHub.
      * @return {Promise<any>} Promise<any>
      */
@@ -227,6 +232,10 @@ class EventHubSender extends events_1.EventEmitter {
                 debug(`[${this._context.connectionId}] Sender "${this.name}", sent message with delivery id: ${delivery.id}`);
             }
             else {
+                // This case should technically not happen. rhea starts the sender credit with 1000 and the circular buffer with a size 
+                // of 2048. It refreshes the credit and replenishes the circular buffer capacity as it processes the message transfer.
+                // In case we end up here, we shall retry sending the message after 5 seconds. This should be a reasonable time for the 
+                // sender to be sendable again.
                 debug(`[${this._context.connectionId}] Sender "${this.name}", not enough capacity to send messages. Will retry in 5 seconds.`);
                 setTimeout(() => {
                     debug(`[${this._context.connectionId}] Sender "${this.name}", timeout complete. Will try sending the message.`);
