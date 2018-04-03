@@ -31,11 +31,11 @@
   "compileOnSave": true,
   "exclude": [
     "node_modules",
-    "testhub"
+    "testhub",
+    "typings/**"
   ],
   "include": [
-    "./lib",
-    "./examples",
-    "./tests"
+    "./lib/**/*.ts",
+    "./examples"
   ]
 }
