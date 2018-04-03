@@ -38,9 +38,9 @@ export interface EventHubPartitionRuntimeInformation {
      */
     lastSequenceNumber: number;
     /**
-     * @property {number} lastEnqueuedOffset - The offset of the last enqueued message in the partition's message log.
+     * @property {string} lastEnqueuedOffset - The offset of the last enqueued message in the partition's message log.
      */
-    lastEnqueuedOffset: number;
+    lastEnqueuedOffset: string;
     /**
      * @property {Date} lastEnqueuedTimeUtc - The time of the last enqueued message in the partition's message log in UTC.
      */
