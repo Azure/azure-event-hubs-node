@@ -327,7 +327,7 @@ export interface SenderOptions extends LinkOptions {
 export interface Context {
   connection: any;
   container: any;
-  delivery?: any;
+  delivery?: Delivery;
   message?: any;
   receiver?: any;
   session: any;
@@ -389,4 +389,18 @@ export enum AmqpResponseStatusCode {
   ServiceUnavailable = 503,
   GatewayTimeout = 504,
   HttpVersionNotSupported = 505
+}
+
+export interface Delivery {
+  data: Buffer[];
+  format: number;
+  id: number;
+  tag: Buffer;
+  link: any;
+  remote_settled: boolean;
+  sent: boolean;
+  settled: boolean;
+  state?: any;
+  remote_state?: any;
+  update(settled: boolean, state?: any): void;
 }
