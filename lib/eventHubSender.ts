@@ -7,7 +7,7 @@ import * as errors from "./errors";
 import * as rheaPromise from "./rhea-promise";
 import * as Constants from "./util/constants";
 import { EventEmitter } from "events";
-import { EventData, AmqpMessage } from ".";
+import { EventData, AmqpMessage, Errors } from ".";
 import { ConnectionContext } from "./eventHubClient";
 import { defaultLock } from "./util/utils";
 
@@ -30,11 +30,15 @@ export class EventHubSender extends EventEmitter {
    */
   partitionId?: string | number;
   /**
-   * @property {string} address The EventHub Sender address.
+   * @property {string} address The EventHub Sender address in one of the following forms:
+   * - "<hubName>"
+   * - "<hubName>/Partitions/<partitionId>".
    */
   address: string;
   /**
-   * @property {string} audience The EventHub Sender token audience.
+   * @property {string} audience The EventHub Sender token audience in one of the following forms:
+   * - "sb://<yournamespace>.servicebus.windows.net/<hubName>"
+   * - "sb://<yournamespace>.servicebus.windows.net/<hubName>/Partitions/<partitionId>".
    */
   audience: string;
   /**
@@ -139,9 +143,9 @@ export class EventHubSender extends EventEmitter {
    * @method send
    * @param {any} data               Message to send.  Will be sent as UTF8-encoded JSON string.
    * @param {string} [partitionKey]  Partition key - sent as x-opt-partition-key, and will hash to a partitionId.
-   * @returns {Promise<any>} Promise<any>
+   * @returns {Promise<rheaPromise.Delivery>} Promise<rheaPromise.Delivery>
    */
-  async send(data: EventData, partitionKey?: string): Promise<any> {
+  async send(data: EventData, partitionKey?: string): Promise<rheaPromise.Delivery> {
     try {
       if (!data || (data && typeof data !== "object")) {
         throw new Error("data is required and it must be of type object.");
@@ -152,7 +156,7 @@ export class EventHubSender extends EventEmitter {
       }
 
       if (!this._session && !this._sender) {
-        throw new Error("amqp sender is not present. Hence cannot send the message.");
+        throw Errors.translate({ condition: Errors.ConditionStatusMapper[404], description: "The messaging entity underlying amqp sender could not be found." });
       }
 
       let message = EventData.toAmqpMessage(data);
@@ -160,7 +164,7 @@ export class EventHubSender extends EventEmitter {
         if (!message.message_annotations) message.message_annotations = {};
         message.message_annotations[Constants.partitionKey] = partitionKey;
       }
-      await this._trySend(message);
+      return await this._trySend(message);
     } catch (err) {
       return Promise.reject(err);
     }
@@ -170,9 +174,9 @@ export class EventHubSender extends EventEmitter {
    * Send a batch of EventData to the EventHub.
    * @param {Array<EventData>} datas  An array of EventData objects to be sent in a Batch message.
    * @param {string} [partitionKey]   Partition key - sent as x-opt-partition-key, and will hash to a partitionId.
-   * @return {Promise<any>} Promise<any>
+   * @return {Promise<rheaPromise.Delivery>} Promise<rheaPromise.Delivery>
    */
-  async sendBatch(datas: EventData[], partitionKey?: string): Promise<any> {
+  async sendBatch(datas: EventData[], partitionKey?: string): Promise<rheaPromise.Delivery> {
     try {
       if (!datas || (datas && !Array.isArray(datas))) {
         throw new Error("data is required and it must be an Array.");
@@ -183,7 +187,7 @@ export class EventHubSender extends EventEmitter {
       }
 
       if (!this._session && !this._sender) {
-        throw new Error("amqp sender is not present. Hence cannot send the message.");
+        throw Errors.translate({ condition: Errors.ConditionStatusMapper[404], description: "The messaging entity underlying amqp sender could not be found." });
       }
       debug(`[${this._context.connectionId}] Sender "${this.name}", trying to send EventData[].`, datas);
       let messages: AmqpMessage[] = [];
@@ -228,17 +232,19 @@ export class EventHubSender extends EventEmitter {
    * @return {Promise<void>} Promise<void>
    */
   async close(): Promise<void> {
-    try {
-      await this._sender.detach();
-      this.removeAllListeners();
-      delete this._context.senders[this.name!];
-      debug(`Deleted the sender "${this.name!}" from the client cache.`);
-      this._sender = undefined;
-      this._session = undefined;
-      clearTimeout(this._tokenRenewalTimer as NodeJS.Timer);
-      debug(`[${this._context.connectionId}] Sender "${this.name}" closed.`);
-    } catch (err) {
-      return Promise.reject(err);
+    if (this._sender) {
+      try {
+        await this._sender.detach();
+        this.removeAllListeners();
+        delete this._context.senders[this.name!];
+        debug(`Deleted the sender "${this.name!}" from the client cache.`);
+        this._sender = undefined;
+        this._session = undefined;
+        clearTimeout(this._tokenRenewalTimer as NodeJS.Timer);
+        debug(`[${this._context.connectionId}] Sender "${this.name}" closed.`);
+      } catch (err) {
+        return Promise.reject(err);
+      }
     }
   }
 
@@ -250,9 +256,9 @@ export class EventHubSender extends EventEmitter {
    * to be accepted or rejected and accordingly resolve or reject the promise.
    *
    * @param message The message to be sent to EventHub.
-   * @return {Promise<any>} Promise<any>
+   * @return {Promise<rheaPromise.Delivery>} Promise<rheaPromise.Delivery>
    */
-  private _trySend(message: AmqpMessage, tag?: any, format?: number): Promise<any> {
+  private _trySend(message: AmqpMessage, tag?: any, format?: number): Promise<rheaPromise.Delivery> {
     return new Promise((resolve, reject) => {
       debug(`[${this._context.connectionId}] Sender "${this.name}", credit: ${this._sender.credit}, ` +
         `available: ${this._sender.session.outgoing.available()}.`);
@@ -274,7 +280,7 @@ export class EventHubSender extends EventEmitter {
           this._sender.removeListener("rejected", onRejected);
           this._sender.removeListener("accepted", onAccepted);
           debug(`[${this._context.connectionId}] Sender "${this.name}", got event accepted.`);
-          reject(errors.translate(context.delivery.remote_state.error));
+          reject(errors.translate(context!.delivery!.remote_state.error));
         };
         this._sender.on("accepted", onAccepted);
         this._sender.on("rejected", onRejected);

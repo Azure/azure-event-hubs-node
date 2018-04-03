@@ -108,11 +108,14 @@ services.forEach(function (service) {
     });
 
     describe("createSender", function () {
-      [0, "0", "1"].forEach(function (partitionId) {
+      const ids = [0, "0", "1"];
+      ids.forEach(function (partitionId) {
         it("returns a Sender when partitionId is " + partitionId, async function () {
           client = EventHubClient.createFromConnectionString(service.connectionString!, service.path);
           const sender = await client.createSender(partitionId);
-          should.equal(true, sender instanceof EventHubSender);
+          sender.should.be.an.instanceof(EventHubSender);
+          should.exist(sender.name!);
+          sender.partitionId!.should.equal(partitionId);
         });
       });
     });

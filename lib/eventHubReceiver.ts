@@ -7,7 +7,7 @@ import * as rheaPromise from "./rhea-promise";
 import * as errors from "./errors";
 import * as Constants from "./util/constants";
 import { EventEmitter } from "events";
-import { ReceiveOptions, EventData } from ".";
+import { ReceiveOptions, EventData, Errors } from ".";
 import { ConnectionContext } from "./eventHubClient";
 import { defaultLock } from "./util/utils";
 
@@ -252,6 +252,10 @@ export class EventHubReceiver extends EventEmitter {
       maxWaitTimeInSeconds = Constants.defaultOperationTimeoutInSeconds;
     }
 
+    if (!this._session && !this._receiver) {
+      throw Errors.translate({ condition: Errors.ConditionStatusMapper[404], description: "The messaging entity underlying amqp receiver could not be found." });
+    }
+
     try {
       let eventDatas: EventData[] = [];
       let count = 0;
@@ -298,20 +302,22 @@ export class EventHubReceiver extends EventEmitter {
    * Closes the underlying AMQP receiver.
    */
   async close(): Promise<void> {
-    try {
-      // TODO: should I call _receiver.detach() or _receiver.close()?
-      // should I also call this._session.close() after closing the reciver
-      // or can I directly close the session which will take care of closing the receiver as well.
-      await this._receiver.detach();
-      this.removeAllListeners();
-      delete this._context.receivers[this.name!];
-      debug(`Deleted the receiver "${this.name!}" from the client cache.`);
-      this._receiver = undefined;
-      this._session = undefined;
-      clearTimeout(this._tokenRenewalTimer as NodeJS.Timer);
-      debug(`[${this._context.connectionId}] Receiver "${this.name}" has been closed.`);
-    } catch (err) {
-      return Promise.reject(err);
+    if (this._receiver) {
+      try {
+        // TODO: should I call _receiver.detach() or _receiver.close()?
+        // should I also call this._session.close() after closing the reciver
+        // or can I directly close the session which will take care of closing the receiver as well.
+        await this._receiver.detach();
+        this.removeAllListeners();
+        delete this._context.receivers[this.name!];
+        debug(`Deleted the receiver "${this.name!}" from the client cache.`);
+        this._receiver = undefined;
+        this._session = undefined;
+        clearTimeout(this._tokenRenewalTimer as NodeJS.Timer);
+        debug(`[${this._context.connectionId}] Receiver "${this.name}" has been closed.`);
+      } catch (err) {
+        return Promise.reject(err);
+      }
     }
   }
 
