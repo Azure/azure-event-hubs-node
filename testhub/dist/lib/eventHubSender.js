@@ -78,8 +78,6 @@ class EventHubSender extends events_1.EventEmitter {
                 };
                 this._sender = await rheaPromise.createSender(this._session, options);
                 this.name = this._sender.name;
-                console.log(this._sender.credit);
-                this._sender.credit = 10;
                 debug(`[${this._context.connectionId}] Negotatited claim for sender "${this.name}" with with partition` +
                     ` "${this.partitionId}"`);
             }
@@ -100,13 +98,13 @@ class EventHubSender extends events_1.EventEmitter {
     async send(data, partitionKey) {
         try {
             if (!data || (data && typeof data !== "object")) {
-                new Error("data is required and it must be of type object.");
+                throw new Error("data is required and it must be of type object.");
             }
             if (partitionKey && typeof partitionKey !== "string") {
-                new Error("partitionKey must be of type string");
+                throw new Error("partitionKey must be of type string");
             }
             if (!this._session && !this._sender) {
-                new Error("amqp sender is not present. Hence cannot send the message.");
+                throw new Error("amqp sender is not present. Hence cannot send the message.");
             }
             let message = _1.EventData.toAmqpMessage(data);
             if (partitionKey) {
@@ -114,7 +112,7 @@ class EventHubSender extends events_1.EventEmitter {
                     message.message_annotations = {};
                 message.message_annotations[Constants.partitionKey] = partitionKey;
             }
-            await this._trySend(message);
+            return await this._trySend(message);
         }
         catch (err) {
             return Promise.reject(err);
@@ -211,6 +209,7 @@ class EventHubSender extends events_1.EventEmitter {
                 `available: ${this._sender.session.outgoing.available()}.`);
             if (this._sender.sendable()) {
                 debug(`[${this._context.connectionId}] Sender "${this.name}", sending message: \n`, message);
+                let onRejected;
                 const onAccepted = (context) => {
                     // Since we will be adding listener for accepted and rejected event every time
                     // we send a message, we need to remove listener for both the events.
@@ -220,7 +219,7 @@ class EventHubSender extends events_1.EventEmitter {
                     debug(`[${this._context.connectionId}] Sender "${this.name}", got event accepted.`);
                     resolve(context.delivery);
                 };
-                const onRejected = (context) => {
+                onRejected = (context) => {
                     this._sender.removeListener("rejected", onRejected);
                     this._sender.removeListener("accepted", onAccepted);
                     debug(`[${this._context.connectionId}] Sender "${this.name}", got event accepted.`);
@@ -232,9 +231,9 @@ class EventHubSender extends events_1.EventEmitter {
                 debug(`[${this._context.connectionId}] Sender "${this.name}", sent message with delivery id: ${delivery.id}`);
             }
             else {
-                // This case should technically not happen. rhea starts the sender credit with 1000 and the circular buffer with a size 
+                // This case should technically not happen. rhea starts the sender credit with 1000 and the circular buffer with a size
                 // of 2048. It refreshes the credit and replenishes the circular buffer capacity as it processes the message transfer.
-                // In case we end up here, we shall retry sending the message after 5 seconds. This should be a reasonable time for the 
+                // In case we end up here, we shall retry sending the message after 5 seconds. This should be a reasonable time for the
                 // sender to be sendable again.
                 debug(`[${this._context.connectionId}] Sender "${this.name}", not enough capacity to send messages. Will retry in 5 seconds.`);
                 setTimeout(() => {

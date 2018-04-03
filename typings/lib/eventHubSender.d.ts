@@ -1,4 +1,5 @@
 /// <reference types="node" />
+import * as rheaPromise from "./rhea-promise";
 import { EventEmitter } from "events";
 import { EventData } from ".";
 import { ConnectionContext } from "./eventHubClient";
@@ -19,11 +20,15 @@ export declare class EventHubSender extends EventEmitter {
      */
     partitionId?: string | number;
     /**
-     * @property {string} address The EventHub Sender address.
+     * @property {string} address The EventHub Sender address in one of the following forms:
+     * - "<hubName>"
+     * - "<hubName>/Partitions/<partitionId>".
      */
     address: string;
     /**
-     * @property {string} audience The EventHub Sender token audience.
+     * @property {string} audience The EventHub Sender token audience in one of the following forms:
+     * - "sb://<yournamespace>.servicebus.windows.net/<hubName>"
+     * - "sb://<yournamespace>.servicebus.windows.net/<hubName>/Partitions/<partitionId>".
      */
     audience: string;
     /**
@@ -66,16 +71,16 @@ export declare class EventHubSender extends EventEmitter {
      * @method send
      * @param {any} data               Message to send.  Will be sent as UTF8-encoded JSON string.
      * @param {string} [partitionKey]  Partition key - sent as x-opt-partition-key, and will hash to a partitionId.
-     * @returns {Promise<any>} Promise<any>
+     * @returns {Promise<rheaPromise.Delivery>} Promise<rheaPromise.Delivery>
      */
-    send(data: EventData, partitionKey?: string): Promise<any>;
+    send(data: EventData, partitionKey?: string): Promise<rheaPromise.Delivery>;
     /**
      * Send a batch of EventData to the EventHub.
      * @param {Array<EventData>} datas  An array of EventData objects to be sent in a Batch message.
      * @param {string} [partitionKey]   Partition key - sent as x-opt-partition-key, and will hash to a partitionId.
-     * @return {Promise<any>} Promise<any>
+     * @return {Promise<rheaPromise.Delivery>} Promise<rheaPromise.Delivery>
      */
-    sendBatch(datas: EventData[], partitionKey?: string): Promise<any>;
+    sendBatch(datas: EventData[], partitionKey?: string): Promise<rheaPromise.Delivery>;
     /**
      * "Unlink" this sender, closing the link and resolving when that operation is complete.
      * Leaves the underlying connection/session open.
@@ -91,7 +96,7 @@ export declare class EventHubSender extends EventEmitter {
      * to be accepted or rejected and accordingly resolve or reject the promise.
      *
      * @param message The message to be sent to EventHub.
-     * @return {Promise<any>} Promise<any>
+     * @return {Promise<rheaPromise.Delivery>} Promise<rheaPromise.Delivery>
      */
     private _trySend(message, tag?, format?);
     /**

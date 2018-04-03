@@ -24,7 +24,7 @@ describe("RuntimeInformation", function () {
     it("gets the hub runtime information", async function () {
         client = lib_1.EventHubClient.createFromConnectionString(service.connectionString, service.path);
         const hubRuntimeInfo = await client.getHubRuntimeInformation();
-        console.log(hubRuntimeInfo);
+        // console.log(hubRuntimeInfo);
         hubRuntimeInfo.path.should.equal(service.path);
         hubRuntimeInfo.type.should.equal("com.microsoft:eventhub");
         hubRuntimeInfo.partitionIds.should.have.members(arrayOfIncreasingNumbersFromZero(hubRuntimeInfo.partitionIds.length));
@@ -34,7 +34,7 @@ describe("RuntimeInformation", function () {
     it("gets the partition runtime information", async function () {
         client = lib_1.EventHubClient.createFromConnectionString(service.connectionString, service.path);
         const partitionRuntimeInfo = await client.getPartitionInformation("0");
-        console.log(partitionRuntimeInfo);
+        // console.log(partitionRuntimeInfo);
         partitionRuntimeInfo.partitionId.should.equal("0");
         partitionRuntimeInfo.type.should.equal("com.microsoft:partition");
         partitionRuntimeInfo.hubPath.should.equal(service.path);

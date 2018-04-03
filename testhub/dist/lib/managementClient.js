@@ -70,7 +70,7 @@ class ManagementClient {
             beginningSequenceNumber: info.begin_sequence_number,
             hubPath: info.name,
             lastEnqueuedOffset: info.last_enqueued_offset,
-            lastEnqueuedTimeUtc: info.last_enqueued_time_utc,
+            lastEnqueuedTimeUtc: new Date(info.last_enqueued_time_utc),
             lastSequenceNumber: info.last_enqueued_sequence_number,
             partitionId: info.partition,
             type: info.type

@@ -93,7 +93,7 @@ class EventHubSender extends events_1.EventEmitter {
      * @method send
      * @param {any} data               Message to send.  Will be sent as UTF8-encoded JSON string.
      * @param {string} [partitionKey]  Partition key - sent as x-opt-partition-key, and will hash to a partitionId.
-     * @returns {Promise<any>} Promise<any>
+     * @returns {Promise<rheaPromise.Delivery>} Promise<rheaPromise.Delivery>
      */
     async send(data, partitionKey) {
         try {
@@ -104,7 +104,7 @@ class EventHubSender extends events_1.EventEmitter {
                 throw new Error("partitionKey must be of type string");
             }
             if (!this._session && !this._sender) {
-                throw new Error("amqp sender is not present. Hence cannot send the message.");
+                throw _1.Errors.translate({ condition: _1.Errors.ConditionStatusMapper[404], description: "The messaging entity underlying amqp sender could not be found." });
             }
             let message = _1.EventData.toAmqpMessage(data);
             if (partitionKey) {
@@ -112,7 +112,7 @@ class EventHubSender extends events_1.EventEmitter {
                     message.message_annotations = {};
                 message.message_annotations[Constants.partitionKey] = partitionKey;
             }
-            await this._trySend(message);
+            return await this._trySend(message);
         }
         catch (err) {
             return Promise.reject(err);
@@ -122,7 +122,7 @@ class EventHubSender extends events_1.EventEmitter {
      * Send a batch of EventData to the EventHub.
      * @param {Array<EventData>} datas  An array of EventData objects to be sent in a Batch message.
      * @param {string} [partitionKey]   Partition key - sent as x-opt-partition-key, and will hash to a partitionId.
-     * @return {Promise<any>} Promise<any>
+     * @return {Promise<rheaPromise.Delivery>} Promise<rheaPromise.Delivery>
      */
     async sendBatch(datas, partitionKey) {
         try {
@@ -133,7 +133,7 @@ class EventHubSender extends events_1.EventEmitter {
                 throw new Error("partitionKey must be of type string");
             }
             if (!this._session && !this._sender) {
-                throw new Error("amqp sender is not present. Hence cannot send the message.");
+                throw _1.Errors.translate({ condition: _1.Errors.ConditionStatusMapper[404], description: "The messaging entity underlying amqp sender could not be found." });
             }
             debug(`[${this._context.connectionId}] Sender "${this.name}", trying to send EventData[].`, datas);
             let messages = [];
@@ -179,18 +179,20 @@ class EventHubSender extends events_1.EventEmitter {
      * @return {Promise<void>} Promise<void>
      */
     async close() {
-        try {
-            await this._sender.detach();
-            this.removeAllListeners();
-            delete this._context.senders[this.name];
-            debug(`Deleted the sender "${this.name}" from the client cache.`);
-            this._sender = undefined;
-            this._session = undefined;
-            clearTimeout(this._tokenRenewalTimer);
-            debug(`[${this._context.connectionId}] Sender "${this.name}" closed.`);
-        }
-        catch (err) {
-            return Promise.reject(err);
+        if (this._sender) {
+            try {
+                await this._sender.detach();
+                this.removeAllListeners();
+                delete this._context.senders[this.name];
+                debug(`Deleted the sender "${this.name}" from the client cache.`);
+                this._sender = undefined;
+                this._session = undefined;
+                clearTimeout(this._tokenRenewalTimer);
+                debug(`[${this._context.connectionId}] Sender "${this.name}" closed.`);
+            }
+            catch (err) {
+                return Promise.reject(err);
+            }
         }
     }
     /**
@@ -201,7 +203,7 @@ class EventHubSender extends events_1.EventEmitter {
      * to be accepted or rejected and accordingly resolve or reject the promise.
      *
      * @param message The message to be sent to EventHub.
-     * @return {Promise<any>} Promise<any>
+     * @return {Promise<rheaPromise.Delivery>} Promise<rheaPromise.Delivery>
      */
     _trySend(message, tag, format) {
         return new Promise((resolve, reject) => {
