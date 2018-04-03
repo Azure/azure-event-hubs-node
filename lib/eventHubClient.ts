@@ -91,11 +91,15 @@ export interface ConnectionContext {
  */
 export class EventHubClient {
   userAgent: string = "/js-event-hubs";
-  private _context: ConnectionContext;
   /**
    * @property {string} [connectionId] The amqp connection id that uniquely identifies the connection within a process.
    */
   connectionId?: string;
+  /**
+   * @property {ConnectionContext} _context Describes the amqp connection context for the eventhub client.
+   * @private
+   */
+  private _context: ConnectionContext;
 
   /**
    * Instantiate a client pointing to the Event Hub given by this configuration.
@@ -118,7 +122,7 @@ export class EventHubClient {
       managementSession: new ManagementClient(config.entityPath!),
       senders: {},
       receivers: {}
-    }
+    };
   }
 
   /**

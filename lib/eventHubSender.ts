@@ -146,15 +146,15 @@ export class EventHubSender extends EventEmitter {
   async send(data: EventData, partitionKey?: string): Promise<any> {
     try {
       if (!data || (data && typeof data !== "object")) {
-        new Error("data is required and it must be of type object.");
+        throw new Error("data is required and it must be of type object.");
       }
 
       if (partitionKey && typeof partitionKey !== "string") {
-        new Error("partitionKey must be of type string");
+        throw new Error("partitionKey must be of type string");
       }
 
       if (!this._session && !this._sender) {
-        new Error("amqp sender is not present. Hence cannot send the message.");
+        throw new Error("amqp sender is not present. Hence cannot send the message.");
       }
 
       let message = EventData.toAmqpMessage(data);
@@ -247,10 +247,10 @@ export class EventHubSender extends EventEmitter {
   /**
    * Tries to send the message to EventHub if there is enough credit to send them
    * and the circular buffer has available space to settle the message after sending them.
-   * 
+   *
    * We have implemented a synchronous send over here. We shall be waiting for the message
    * to be accepted or rejected and accordingly resolve or reject the promise.
-   * 
+   *
    * @param message The message to be sent to EventHub.
    * @return {Promise<any>} Promise<any>
    */
@@ -260,16 +260,19 @@ export class EventHubSender extends EventEmitter {
         `available: ${this._sender.session.outgoing.available()}.`);
       if (this._sender.sendable()) {
         debug(`[${this._context.connectionId}] Sender "${this.name}", sending message: \n`, message);
-        const onAccepted = (context: rheaPromise.Context) => {
+        type Func<T, V> = (a: T) => V;
+        let onRejected: Func<rheaPromise.Context, void>;
+        const onAccepted: Func<rheaPromise.Context, void> = (context: rheaPromise.Context) => {
           // Since we will be adding listener for accepted and rejected event every time
           // we send a message, we need to remove listener for both the events.
           // This will ensure duplicate listeners are not added for the same event.
           this._sender.removeListener("accepted", onAccepted);
+
           this._sender.removeListener("rejected", onRejected);
           debug(`[${this._context.connectionId}] Sender "${this.name}", got event accepted.`);
           resolve(context.delivery);
         };
-        const onRejected = (context: rheaPromise.Context) => {
+        onRejected = (context: rheaPromise.Context) => {
           this._sender.removeListener("rejected", onRejected);
           this._sender.removeListener("accepted", onAccepted);
           debug(`[${this._context.connectionId}] Sender "${this.name}", got event accepted.`);
@@ -279,11 +282,10 @@ export class EventHubSender extends EventEmitter {
         this._sender.on("rejected", onRejected);
         const delivery = this._sender.send(message, tag, format);
         debug(`[${this._context.connectionId}] Sender "${this.name}", sent message with delivery id: ${delivery.id}`);
-      }
-      else {
-        // This case should technically not happen. rhea starts the sender credit with 1000 and the circular buffer with a size 
+      } else {
+        // This case should technically not happen. rhea starts the sender credit with 1000 and the circular buffer with a size
         // of 2048. It refreshes the credit and replenishes the circular buffer capacity as it processes the message transfer.
-        // In case we end up here, we shall retry sending the message after 5 seconds. This should be a reasonable time for the 
+        // In case we end up here, we shall retry sending the message after 5 seconds. This should be a reasonable time for the
         // sender to be sendable again.
         debug(`[${this._context.connectionId}] Sender "${this.name}", not enough capacity to send messages. Will retry in 5 seconds.`);
         setTimeout(() => {
