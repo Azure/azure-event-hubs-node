@@ -97,4 +97,3 @@ async function handler(argv) {
     }
 }
 exports.handler = handler;
-//# sourceMappingURL=receive.js.map

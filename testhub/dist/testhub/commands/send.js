@@ -93,4 +93,3 @@ async function handler(argv) {
     }
 }
 exports.handler = handler;
-//# sourceMappingURL=send.js.map

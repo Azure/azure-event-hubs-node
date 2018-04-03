@@ -47,4 +47,3 @@ yargs
 if (yargs.argv._.length === 0 && yargs.argv.h === false) {
     yargs.coerce('help', function (arg) { return true; }).argv;
 }
-//# sourceMappingURL=cli.js.map

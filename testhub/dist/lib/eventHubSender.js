@@ -100,13 +100,13 @@ class EventHubSender extends events_1.EventEmitter {
     async send(data, partitionKey) {
         try {
             if (!data || (data && typeof data !== "object")) {
-                throw new Error("data is required and it must be of type object.");
+                new Error("data is required and it must be of type object.");
             }
             if (partitionKey && typeof partitionKey !== "string") {
-                throw new Error("partitionKey must be of type string");
+                new Error("partitionKey must be of type string");
             }
             if (!this._session && !this._sender) {
-                throw new Error("amqp sender is not present. Hence cannot send the message.");
+                new Error("amqp sender is not present. Hence cannot send the message.");
             }
             let message = _1.EventData.toAmqpMessage(data);
             if (partitionKey) {
@@ -211,7 +211,6 @@ class EventHubSender extends events_1.EventEmitter {
                 `available: ${this._sender.session.outgoing.available()}.`);
             if (this._sender.sendable()) {
                 debug(`[${this._context.connectionId}] Sender "${this.name}", sending message: \n`, message);
-                let onRejected;
                 const onAccepted = (context) => {
                     // Since we will be adding listener for accepted and rejected event every time
                     // we send a message, we need to remove listener for both the events.
@@ -221,7 +220,7 @@ class EventHubSender extends events_1.EventEmitter {
                     debug(`[${this._context.connectionId}] Sender "${this.name}", got event accepted.`);
                     resolve(context.delivery);
                 };
-                onRejected = (context) => {
+                const onRejected = (context) => {
                     this._sender.removeListener("rejected", onRejected);
                     this._sender.removeListener("accepted", onAccepted);
                     debug(`[${this._context.connectionId}] Sender "${this.name}", got event accepted.`);
@@ -233,9 +232,9 @@ class EventHubSender extends events_1.EventEmitter {
                 debug(`[${this._context.connectionId}] Sender "${this.name}", sent message with delivery id: ${delivery.id}`);
             }
             else {
-                // This case should technically not happen. rhea starts the sender credit with 1000 and the circular buffer with a size
+                // This case should technically not happen. rhea starts the sender credit with 1000 and the circular buffer with a size 
                 // of 2048. It refreshes the credit and replenishes the circular buffer capacity as it processes the message transfer.
-                // In case we end up here, we shall retry sending the message after 5 seconds. This should be a reasonable time for the
+                // In case we end up here, we shall retry sending the message after 5 seconds. This should be a reasonable time for the 
                 // sender to be sendable again.
                 debug(`[${this._context.connectionId}] Sender "${this.name}", not enough capacity to send messages. Will retry in 5 seconds.`);
                 setTimeout(() => {
@@ -260,4 +259,3 @@ class EventHubSender extends events_1.EventEmitter {
     }
 }
 exports.EventHubSender = EventHubSender;
-//# sourceMappingURL=eventHubSender.js.map
