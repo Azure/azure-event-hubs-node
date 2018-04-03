@@ -177,7 +177,6 @@ class EventHubReceiver extends events_1.EventEmitter {
                 const onReceiveMessage = (data) => {
                     if (!timeOver && count <= maxMessageCount) {
                         count++;
-                        // console.log(count);
                         eventDatas.push(data);
                     }
                     if (count === maxMessageCount) {

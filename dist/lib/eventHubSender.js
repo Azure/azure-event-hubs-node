@@ -78,8 +78,6 @@ class EventHubSender extends events_1.EventEmitter {
                 };
                 this._sender = await rheaPromise.createSender(this._session, options);
                 this.name = this._sender.name;
-                console.log(this._sender.credit);
-                this._sender.credit = 10;
                 debug(`[${this._context.connectionId}] Negotatited claim for sender "${this.name}" with with partition` +
                     ` "${this.partitionId}"`);
             }
