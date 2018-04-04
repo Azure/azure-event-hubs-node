@@ -26,7 +26,7 @@ describe("EventHub Sender", function () {
   afterEach("close the sender link", async function () {
     await sender.close();
   });
-  describe("single message", function () {
+  describe("Single message", function () {
     it("should be sent successfully.", async function () {
       sender = await client.createSender();
       sender.should.be.instanceof(EventHubSender);
@@ -71,7 +71,7 @@ describe("EventHub Sender", function () {
     });
   });
 
-  describe("batch message", function () {
+  describe("Batch message", function () {
     it("should be sent successfully.", async function () {
       sender = await client.createSender();
       sender.should.be.instanceof(EventHubSender);
@@ -131,8 +131,8 @@ describe("EventHub Sender", function () {
     });
   });
 
-  describe("negative scenarios", function () {
-    it("should throw an error if a message is sent after the sender is closed.", async function () {
+  describe("Negative scenarios", function () {
+    it("should throw 'MessagingEntityNotFoundError' if a message is sent after the sender is closed.", async function () {
       sender = await client.createSender();
       sender.should.be.instanceof(EventHubSender);
       let data: EventData = {

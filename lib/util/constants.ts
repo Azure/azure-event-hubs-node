@@ -27,6 +27,7 @@ export const aadEventHubsAudience = "https://eventhubs.azure.net/";
 export const maxUserAgentLength = 128;
 export const vendorString = "com.microsoft";
 export const attachEpoch = `${vendorString}:epoch`;
+export const receiverIdentifierName = `${vendorString}:receiver-name`;
 export const enableReceiverRuntimeMetricName = `${vendorString}:enable-receiver-runtime-metric`;
 export const receiverError = "receiver_error";
 export const senderError = "sender_error";

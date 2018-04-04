@@ -57,11 +57,13 @@ export class EventHubReceiver extends EventEmitter {
    */
   name?: string;
   /**
-   * @property {string} address The EventHub Receiver address.
+   * @property {string} address The EventHub Receiver address in the following format:
+   * - "<event-hub-name>/ConsumerGroups/<consumer-group-name>/Partitions/<partition-id>"
    */
   address: string;
   /**
-   * @property {string} audience The EventHub Receiver token audience.
+   * @property {string} audience The EventHub Receiver token audience in the following format:
+   * - "sb://<your-namespace>.servicebus.windows.net/<event-hub-name>/ConsumerGroups/<consumer-group-name>/Partitions/<partition-id>"
    */
   audience: string;
   /**
@@ -80,6 +82,10 @@ export class EventHubReceiver extends EventEmitter {
    * @property {number} [epoch] The Receiver epoch.
    */
   epoch?: number;
+  /**
+   * @property {string} [identifier] The Receiver identifier
+   */
+  identifier?: string;
   /**
    * @property {ReceiveOptions} [options] Optional properties that can be set while creating the EventHubReceiver.
    */
@@ -143,6 +149,7 @@ export class EventHubReceiver extends EventEmitter {
     this.audience = `${this._context.config.endpoint}${this.address}`;
     this.prefetchCount = options.prefetchCount !== undefined && options.prefetchCount !== null ? options.prefetchCount : 1000;
     this.epoch = options.epoch;
+    this.identifier = options.identifier;
     this.options = options;
     this.receiverRuntimeMetricEnabled = options.enableReceiverRuntimeMetric || false;
     this.runtimeInfo = {
@@ -210,6 +217,10 @@ export class EventHubReceiver extends EventEmitter {
           if (!rcvrOptions.properties) rcvrOptions.properties = {};
           rcvrOptions.properties[Constants.attachEpoch] = rhea.types.wrap_long(this.epoch);
         }
+        if (this.identifier) {
+          if (!rcvrOptions.properties) rcvrOptions.properties = {};
+          rcvrOptions.properties[Constants.receiverIdentifierName] = this.identifier;
+        }
         if (this.receiverRuntimeMetricEnabled) {
           rcvrOptions.desired_capabilities = Constants.enableReceiverRuntimeMetricName;
         }
@@ -223,9 +234,20 @@ export class EventHubReceiver extends EventEmitter {
           }
         }
         this._session = await rheaPromise.createSession(this._context.connection);
+        let receiverError: any;
+        this._session.on("receiver_error", (context) => {
+          receiverError = errors.translate(context.receiver.error);
+          console.log("$$$$$ %s receiverError", this.name, receiverError);
+        });
         this._receiver = await rheaPromise.createReceiver(this._session, rcvrOptions);
+        // this._receiver.on("receiver_error", (context) => {
+        //   return Promise.reject(errors.translate(context.receiver.error));
+        // });
         this.name = this._receiver.name;
-        debug(`[${this._context.connectionId}] Receiver "${this.name}" created with receiver options.`, rcvrOptions);
+        if (receiverError) {
+          throw receiverError;
+        }
+        debug(`[${this._context.connectionId}] Receiver "${this.name}" created with receiver options: \n${JSON.stringify(rcvrOptions, undefined, 2)}`);
         debug(`[${this._context.connectionId}] Negotatited claim for receiver "${this.name}" with with partition "${this.partitionId}"`);
       }
       this._ensureTokenRenewal();
@@ -277,6 +299,7 @@ export class EventHubReceiver extends EventEmitter {
         const onReceiveMessage = (data: EventData) => {
           if (!timeOver && count <= maxMessageCount) {
             count++;
+            // console.log(`${new Date().toString()} - ${count}`);
             eventDatas.push(data);
           }
           if (count === maxMessageCount) {

@@ -98,8 +98,8 @@ export default class EventPosition {
         `${Constants.offsetAnnotation} > '${this.offset}'`;
     } else if (this.sequenceNumber) {
       result = this.isInclusive ?
-        `${Constants.sequenceNumberAnnotation} >= '${this.offset}'` :
-        `${Constants.sequenceNumberAnnotation} >= '${this.offset}'`;
+        `${Constants.sequenceNumberAnnotation} >= '${this.sequenceNumber}'` :
+        `${Constants.sequenceNumberAnnotation} > '${this.sequenceNumber}'`;
     } else if (this.enqueuedTime) {
       let time = (this.enqueuedTime instanceof Date) ? this.enqueuedTime.getTime() : this.enqueuedTime;
       result = `${Constants.enqueuedTimeAnnotation} > '${time}'`;
@@ -118,7 +118,8 @@ export default class EventPosition {
    * @param {string} offset The offset of the data relative to the Event Hub partition stream.
    * The offset is a marker or identifier for an event within the Event Hubs stream.
    * The identifier is unique within a partition of the Event Hubs stream.
-   * @param {boolean} isInclusive If true, the specified event is included; otherwise the next event is returned.
+   * @param {boolean} isInclusive If true, the specified event is included;
+   * otherwise the next event is returned. Default: false.
    * @return {EventPosition} EventPosition
    */
   static fromOffset(offset: string, isInclusive?: boolean): EventPosition {
@@ -128,7 +129,8 @@ export default class EventPosition {
   /**
    * Creates a position at the given sequence number.
    * @param {number} sequenceNumber The logical sequence number of the event within the partition stream of the Event Hub.
-   * @param {boolean} isInclusive If true, the specified event is included; otherwise the next event is returned.
+   * @param {boolean} isInclusive If true, the specified event is included;
+   * otherwise the next event is returned. Default false.
    * @return {EventPosition} EventPosition
    */
   static fromSequenceNumber(sequenceNumber: number, isInclusive?: boolean): EventPosition {
