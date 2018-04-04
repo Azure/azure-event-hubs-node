@@ -44,11 +44,13 @@ export declare class EventHubReceiver extends EventEmitter {
      */
     name?: string;
     /**
-     * @property {string} address The EventHub Receiver address.
+     * @property {string} address The EventHub Receiver address in the following format:
+     * - "<event-hub-name>/ConsumerGroups/<consumer-group-name>/Partitions/<partition-id>"
      */
     address: string;
     /**
-     * @property {string} audience The EventHub Receiver token audience.
+     * @property {string} audience The EventHub Receiver token audience in the following format:
+     * - "sb://<your-namespace>.servicebus.windows.net/<event-hub-name>/ConsumerGroups/<consumer-group-name>/Partitions/<partition-id>"
      */
     audience: string;
     /**
@@ -67,6 +69,10 @@ export declare class EventHubReceiver extends EventEmitter {
      * @property {number} [epoch] The Receiver epoch.
      */
     epoch?: number;
+    /**
+     * @property {string} [identifier] The Receiver identifier
+     */
+    identifier?: string;
     /**
      * @property {ReceiveOptions} [options] Optional properties that can be set while creating the EventHubReceiver.
      */

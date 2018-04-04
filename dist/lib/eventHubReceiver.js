@@ -54,6 +54,7 @@ class EventHubReceiver extends events_1.EventEmitter {
         this.audience = `${this._context.config.endpoint}${this.address}`;
         this.prefetchCount = options.prefetchCount !== undefined && options.prefetchCount !== null ? options.prefetchCount : 1000;
         this.epoch = options.epoch;
+        this.identifier = options.identifier;
         this.options = options;
         this.receiverRuntimeMetricEnabled = options.enableReceiverRuntimeMetric || false;
         this.runtimeInfo = {
@@ -116,6 +117,11 @@ class EventHubReceiver extends events_1.EventEmitter {
                         rcvrOptions.properties = {};
                     rcvrOptions.properties[Constants.attachEpoch] = rhea.types.wrap_long(this.epoch);
                 }
+                if (this.identifier) {
+                    if (!rcvrOptions.properties)
+                        rcvrOptions.properties = {};
+                    rcvrOptions.properties[Constants.receiverIdentifierName] = this.identifier;
+                }
                 if (this.receiverRuntimeMetricEnabled) {
                     rcvrOptions.desired_capabilities = Constants.enableReceiverRuntimeMetricName;
                 }
@@ -129,9 +135,20 @@ class EventHubReceiver extends events_1.EventEmitter {
                     }
                 }
                 this._session = await rheaPromise.createSession(this._context.connection);
+                let receiverError;
+                this._session.on("receiver_error", (context) => {
+                    receiverError = errors.translate(context.receiver.error);
+                    console.log("$$$$$ %s receiverError", this.name, receiverError);
+                });
                 this._receiver = await rheaPromise.createReceiver(this._session, rcvrOptions);
+                // this._receiver.on("receiver_error", (context) => {
+                //   return Promise.reject(errors.translate(context.receiver.error));
+                // });
                 this.name = this._receiver.name;
-                debug(`[${this._context.connectionId}] Receiver "${this.name}" created with receiver options.`, rcvrOptions);
+                if (receiverError) {
+                    throw receiverError;
+                }
+                debug(`[${this._context.connectionId}] Receiver "${this.name}" created with receiver options: \n${JSON.stringify(rcvrOptions, undefined, 2)}`);
                 debug(`[${this._context.connectionId}] Negotatited claim for receiver "${this.name}" with with partition "${this.partitionId}"`);
             }
             this._ensureTokenRenewal();
@@ -180,6 +197,7 @@ class EventHubReceiver extends events_1.EventEmitter {
                 const onReceiveMessage = (data) => {
                     if (!timeOver && count <= maxMessageCount) {
                         count++;
+                        // console.log(`${new Date().toString()} - ${count}`);
                         eventDatas.push(data);
                     }
                     if (count === maxMessageCount) {

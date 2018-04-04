@@ -1,8 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const lib_1 = require("../lib");
-const connectionString = "SB_CONNECTION_STRING";
-const entityPath = "ENTITY_PATH";
+const connectionString = "EVENTHUB_CONNECTION_STRING";
+const entityPath = "EVENTHUB_NAME";
 const str = process.env[connectionString] || "";
 const path = process.env[entityPath] || "";
 async function main() {

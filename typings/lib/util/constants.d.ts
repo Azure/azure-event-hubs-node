@@ -24,6 +24,7 @@ export declare const aadEventHubsAudience = "https://eventhubs.azure.net/";
 export declare const maxUserAgentLength = 128;
 export declare const vendorString = "com.microsoft";
 export declare const attachEpoch: string;
+export declare const receiverIdentifierName: string;
 export declare const enableReceiverRuntimeMetricName: string;
 export declare const receiverError = "receiver_error";
 export declare const senderError = "sender_error";

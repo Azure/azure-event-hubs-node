@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const lib_1 = require("../lib");
 const msrestAzure = require("ms-rest-azure");
 const endpoint = "ENDPOINT";
-const entityPath = "ENTITY_PATH";
+const entityPath = "EVENTHUB_NAME";
 const address = process.env[endpoint] || "";
 const path = process.env[entityPath] || "";
 const cid = "CLIENT_ID";

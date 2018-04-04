@@ -25,6 +25,10 @@ export interface ReceiveOptions {
      */
     epoch?: number;
     /**
+     * @property {string} [identifier] The receiver identifier that uniqely identifies the receiver.
+     */
+    identifier?: string;
+    /**
      * @property {boolean} [enableReceiverRuntimeMetric] A value indicating whether the runtime metric of a receiver is enabled.
      */
     enableReceiverRuntimeMetric?: boolean;
