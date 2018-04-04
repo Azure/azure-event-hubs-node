@@ -1,7 +1,7 @@
 import { EventHubClient } from "../lib/index";
 
-const str = process.env["SB_CONNECTION_STRING"] || "";
-const path = process.env["ENTITY_PATH"] || "";
+const str = process.env["EVENTHUB_CONNECTION_STRING"] || "";
+const path = process.env["EVENTHUB_NAME"] || "";
 
 
 async function main(): Promise<void> {

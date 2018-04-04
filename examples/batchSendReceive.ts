@@ -1,7 +1,7 @@
 import { EventHubClient, EventData, EventPosition } from "../lib";
 
-const connectionString = "SB_CONNECTION_STRING";
-const entityPath = "ENTITY_PATH";
+const connectionString = "EVENTHUB_CONNECTION_STRING";
+const entityPath = "EVENTHUB_NAME";
 const str = process.env[connectionString] || "";
 const path = process.env[entityPath] || "";
 

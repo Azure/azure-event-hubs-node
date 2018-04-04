@@ -2,7 +2,7 @@ import { EventHubClient, aadEventHubsAudience } from "../lib";
 import * as msrestAzure from "ms-rest-azure";
 
 const endpoint = "ENDPOINT";
-const entityPath = "ENTITY_PATH";
+const entityPath = "EVENTHUB_NAME";
 const address = process.env[endpoint] || "";
 const path = process.env[entityPath] || "";
 
