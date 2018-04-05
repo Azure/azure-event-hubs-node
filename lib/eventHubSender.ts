@@ -84,7 +84,7 @@ export class EventHubSender extends EventEmitter {
     };
 
     this.on("newListener", (event) => {
-      if (event === Constants.senderError) {
+      if (event === Constants.error) {
         if (this._session && this._sender) {
           this._sender.on(Constants.senderError, onError);
         }
@@ -92,9 +92,9 @@ export class EventHubSender extends EventEmitter {
     });
 
     this.on("removeListener", (event) => {
-      if (event === Constants.senderError) {
+      if (event === Constants.error) {
         if (this._session && this._sender) {
-          this._sender.on(Constants.senderError, onError);
+          this._sender.removeListener(Constants.senderError, onError);
         }
       }
     });
@@ -125,7 +125,7 @@ export class EventHubSender extends EventEmitter {
           senderError = Errors.translate(context.sender.error);
           debug(`An error occurred while creating the sender "${this.name}" : `, senderError);
         };
-        this._sender.on("sender_error", handleSenderError);
+        this._session.on(Constants.senderError, handleSenderError);
         let options: rheaPromise.SenderOptions = {
           target: {
             address: this.address
@@ -136,7 +136,7 @@ export class EventHubSender extends EventEmitter {
         if (senderError) {
           throw senderError;
         }
-        this.removeListener("sender_error", handleSenderError);
+        this._session.removeListener(Constants.senderError, handleSenderError);
         debug(`[${this._context.connectionId}] Sender "${this.name}" created with sender options: \n${JSON.stringify(options, undefined, 2)}`);
       }
       debug(`[${this._context.connectionId}] Negotatited claim for sender "${this.name}" with with partition` +

@@ -261,15 +261,24 @@ describe("EventHub Receiver", function () {
       try {
         let events: EventData[] = [];
         const epochRcvr1 = await client.createReceiver(partitionId, { epoch: 1, eventPosition: EventPosition.fromEnd() });
-        console.log("Created epoch receiver 1 %s", epochRcvr1.name);
+        epochRcvr1.on("error", (error) => {
+          //console.log(">>>> epoch Receiver 1", error);
+          should.exist(error);
+          should.equal(true, error instanceof Errors.ReceiverDisconnectedError);
+        });
+        // console.log("Created epoch receiver 1 %s", epochRcvr1.name);
         events = await epochRcvr1.receive(20, 10);
-        console.log("Received events from epoch receiver 1 %s - %o", epochRcvr1.name, events.length);
+        // console.log("Received events from epoch receiver 1 %s - %o", epochRcvr1.name, events.length);
         const epochRcvr2 = await client.createReceiver(partitionId, { epoch: 2, eventPosition: EventPosition.fromEnd() });
-        console.log("Created epoch receiver 2 %s", epochRcvr2.name);
+        // console.log("Created epoch receiver 2 %s", epochRcvr2.name);
+        epochRcvr2.on("error", (error) => {
+          console.log(">>>> epoch Receiver 2", error);
+          throw new Error("An Error should not have happened for epoch receiver with epoch value 2.");
+        });
         events = await epochRcvr2.receive(20, 10);
-        console.log(">>>> Received events from epoch receiver 1 %s - %o", epochRcvr2.name, events.length);
+        // console.log(">>>> Received events from epoch receiver 2 %s - %o", epochRcvr2.name, events.length);
       } catch (err) {
-        console.log(err);
+        console.log("uber catch: ", err);
       }
     });
 
@@ -278,13 +287,22 @@ describe("EventHub Receiver", function () {
       try {
         let events: EventData[] = [];
         const epochRcvr = await client.createReceiver(partitionId, { epoch: 1, eventPosition: EventPosition.fromEnd() });
-        console.log("Created epoch receiver 1 %s", epochRcvr.name);
+        epochRcvr.on("error", (error) => {
+          console.log(">>>> epoch Receiver 1", error);
+          throw new Error("An Error should not have happened for epoch receiver with epoch value 1.");
+        });
+        // console.log("Created epoch receiver 1 %s", epochRcvr.name);
         events = await epochRcvr.receive(20, 10);
-        console.log("Received events from epoch receiver 1 %s - %o", epochRcvr.name, events.length);
+        // console.log("Received events from epoch receiver 1 %s - %o", epochRcvr.name, events.length);
         const nonEpochRcvr = await client.createReceiver(partitionId, { eventPosition: EventPosition.fromEnd() });
-        console.log("Created epoch receiver 2 %s", nonEpochRcvr.name);
+        nonEpochRcvr.on("error", (error) => {
+          // console.log(">>>> non epoch Receiver", error);
+          should.exist(error);
+          should.equal(true, error instanceof Errors.ReceiverDisconnectedError);
+        });
+        // console.log("Created non epoch receiver %s", nonEpochRcvr.name);
         events = await nonEpochRcvr.receive(20, 10);
-        console.log(">>>> Received events from non epoch receiver 2 %s - %o", epochRcvr.name, events.length);
+        // console.log(">>>> Received events from non epoch receiver 2 %s - %o", epochRcvr.name, events.length);
       } catch (err) {
         console.log(err);
       }
@@ -295,13 +313,22 @@ describe("EventHub Receiver", function () {
       try {
         let events: EventData[] = [];
         const nonEpochRcvr = await client.createReceiver(partitionId, { eventPosition: EventPosition.fromEnd() });
-        console.log("Created epoch receiver 2 %s", nonEpochRcvr.name);
-        const epochRcvr = await client.createReceiver(partitionId, { epoch: 1, eventPosition: EventPosition.fromEnd() });
-        console.log("Created epoch receiver 1 %s", epochRcvr.name);
+        nonEpochRcvr.on("error", (error) => {
+          // console.log(">>>> non epoch Receiver: ", error);
+          should.exist(error);
+          should.equal(true, error instanceof Errors.ReceiverDisconnectedError);
+        });
+        // console.log("Created non epoch receiver %s", nonEpochRcvr.name);
         events = await nonEpochRcvr.receive(20, 10);
-        console.log(">>>> Received events from non epoch receiver %s - %o", nonEpochRcvr.name, events.length);
+        // console.log(">>>> Received events from non epoch receiver %s - %o", nonEpochRcvr.name, events.length);
+        const epochRcvr = await client.createReceiver(partitionId, { epoch: 1, eventPosition: EventPosition.fromEnd() });
+        epochRcvr.on("error", (error) => {
+          console.log(">>>> epoch Receiver: ", error);
+          throw new Error("An Error should not have happened for epoch receiver with epoch value 1.");
+        });
+        // console.log("Created epoch receiver %s", epochRcvr.name);
         events = await epochRcvr.receive(20, 10);
-        console.log("Received events from epoch receiver 1 %s - %o", epochRcvr.name, events.length);
+        // console.log("Received events from epoch receiver 1 %s - %o", epochRcvr.name, events.length);
       } catch (err) {
         console.log(err);
       }
