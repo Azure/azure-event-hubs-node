@@ -9,7 +9,7 @@ import * as Constants from "./util/constants";
 import { EventEmitter } from "events";
 import { EventData, AmqpMessage, Errors } from ".";
 import { ConnectionContext } from "./eventHubClient";
-import { defaultLock } from "./util/utils";
+import { defaultLock, Func } from "./util/utils";
 
 const debug = debugModule("azure:event-hubs:sender");
 
@@ -119,7 +119,13 @@ export class EventHubSender extends EventEmitter {
       // Negotitate the CBS claim.
       await this._context.cbsSession.negotiateClaim(this.audience, this._context.connection, tokenObject);
       if (!this._session && !this._sender) {
+        let senderError: any;
         this._session = await rheaPromise.createSession(this._context.connection);
+        const handleSenderError = (context: rheaPromise.Context) => {
+          senderError = Errors.translate(context.sender.error);
+          debug(`An error occurred while creating the sender "${this.name}" : `, senderError);
+        };
+        this._sender.on("sender_error", handleSenderError);
         let options: rheaPromise.SenderOptions = {
           target: {
             address: this.address
@@ -127,10 +133,14 @@ export class EventHubSender extends EventEmitter {
         };
         this._sender = await rheaPromise.createSender(this._session, options);
         this.name = this._sender.name;
-        debug(`[${this._context.connectionId}] Negotatited claim for sender "${this.name}" with with partition` +
-          ` "${this.partitionId}"`);
+        if (senderError) {
+          throw senderError;
+        }
+        this.removeListener("sender_error", handleSenderError);
+        debug(`[${this._context.connectionId}] Sender "${this.name}" created with sender options: \n${JSON.stringify(options, undefined, 2)}`);
       }
-
+      debug(`[${this._context.connectionId}] Negotatited claim for sender "${this.name}" with with partition` +
+        ` "${this.partitionId}"`);
       this._ensureTokenRenewal();
     } catch (err) {
       return Promise.reject(err);
@@ -264,7 +274,6 @@ export class EventHubSender extends EventEmitter {
         `available: ${this._sender.session.outgoing.available()}.`);
       if (this._sender.sendable()) {
         debug(`[${this._context.connectionId}] Sender "${this.name}", sending message: \n`, message);
-        type Func<T, V> = (a: T) => V;
         let onRejected: Func<rheaPromise.Context, void>;
         const onAccepted: Func<rheaPromise.Context, void> = (context: rheaPromise.Context) => {
           // Since we will be adding listener for accepted and rejected event every time

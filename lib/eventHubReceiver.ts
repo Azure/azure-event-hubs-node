@@ -9,7 +9,7 @@ import * as Constants from "./util/constants";
 import { EventEmitter } from "events";
 import { ReceiveOptions, EventData, Errors } from ".";
 import { ConnectionContext } from "./eventHubClient";
-import { defaultLock } from "./util/utils";
+import { defaultLock, Func } from "./util/utils";
 
 const debug = debugModule("azure:event-hubs:receiver");
 
@@ -206,6 +206,7 @@ export class EventHubReceiver extends EventEmitter {
       // Negotitate the CBS claim.
       await this._context.cbsSession.negotiateClaim(this.audience, this._context.connection, tokenObject);
       if (!this._session && !this._receiver) {
+        let receiverError: any;
         let rcvrOptions: rheaPromise.ReceiverOptions = {
           autoaccept: true,
           source: {
@@ -234,11 +235,12 @@ export class EventHubReceiver extends EventEmitter {
           }
         }
         this._session = await rheaPromise.createSession(this._context.connection);
-        let receiverError: any;
-        this._session.on("receiver_error", (context) => {
+        const handleReceiverError = (context: rheaPromise.Context) => {
           receiverError = errors.translate(context.receiver.error);
           console.log("$$$$$ %s receiverError", this.name, receiverError);
-        });
+          debug(`An error occurred while creating the receiver "${this.name}" : `, receiverError);
+        };
+        this._session.on("receiver_error", handleReceiverError);
         this._receiver = await rheaPromise.createReceiver(this._session, rcvrOptions);
         // this._receiver.on("receiver_error", (context) => {
         //   return Promise.reject(errors.translate(context.receiver.error));
@@ -247,9 +249,10 @@ export class EventHubReceiver extends EventEmitter {
         if (receiverError) {
           throw receiverError;
         }
+        this.removeListener("receiver_error", handleReceiverError);
         debug(`[${this._context.connectionId}] Receiver "${this.name}" created with receiver options: \n${JSON.stringify(rcvrOptions, undefined, 2)}`);
-        debug(`[${this._context.connectionId}] Negotatited claim for receiver "${this.name}" with with partition "${this.partitionId}"`);
       }
+      debug(`[${this._context.connectionId}] Negotatited claim for receiver "${this.name}" with with partition "${this.partitionId}"`);
       this._ensureTokenRenewal();
     } catch (err) {
       return Promise.reject(err);
@@ -283,9 +286,19 @@ export class EventHubReceiver extends EventEmitter {
       let count = 0;
       let timeOver = false;
       return new Promise<EventData[]>((resolve, reject) => {
-        const actionAfterWaitTimeout = () => {
-          timeOver = true;
-          let data = eventDatas.length ? eventDatas[eventDatas.length - 1] : undefined;
+        let onReceiveMessage: Func<EventData, void>;
+        let waitTimer: NodeJS.Timer;
+        let actionAfterWaitTimeout: Func<void, void>;
+        // Final action to be performed after maxMessageCount is reached or the maxWaitTime is over.
+        const finalAction = (timeOver: boolean, data?: EventData) => {
+          // Remove the listener to avoid receiving duplicate messages.
+          this.removeListener(Constants.message, onReceiveMessage);
+          if (!data) {
+            data = eventDatas.length ? eventDatas[eventDatas.length - 1] : undefined;
+          }
+          if (timeOver) {
+            clearTimeout(waitTimer);
+          }
           if (this.receiverRuntimeMetricEnabled && data) {
             this.runtimeInfo.lastSequenceNumber = data.lastSequenceNumber;
             this.runtimeInfo.lastEnqueuedTimeUtc = data.lastEnqueuedTime;
@@ -294,26 +307,25 @@ export class EventHubReceiver extends EventEmitter {
           }
           resolve(eventDatas);
         };
-        let waitTimer = setTimeout(actionAfterWaitTimeout, (maxWaitTimeInSeconds as number) * 1000);
+
+        // Action to be performed after the max wait time is over.
+        actionAfterWaitTimeout = () => {
+          timeOver = true;
+          finalAction(timeOver);
+        };
+
         // Action to be performed on the "message" event.
-        const onReceiveMessage = (data: EventData) => {
+        onReceiveMessage = (data: EventData) => {
           if (!timeOver && count <= maxMessageCount) {
             count++;
             // console.log(`${new Date().toString()} - ${count}`);
             eventDatas.push(data);
           }
           if (count === maxMessageCount) {
-            this.removeListener(Constants.message, onReceiveMessage);
-            clearTimeout(waitTimer);
-            if (this.receiverRuntimeMetricEnabled) {
-              this.runtimeInfo.lastSequenceNumber = data.lastSequenceNumber;
-              this.runtimeInfo.lastEnqueuedTimeUtc = data.lastEnqueuedTime;
-              this.runtimeInfo.lastEnqueuedOffset = data.lastEnqueuedOffset;
-              this.runtimeInfo.retrievalTime = data.retrievalTime;
-            }
-            resolve(eventDatas);
+            finalAction(timeOver, data);
           }
         };
+        waitTimer = setTimeout(actionAfterWaitTimeout, (maxWaitTimeInSeconds as number) * 1000);
         this.on(Constants.message, onReceiveMessage);
       });
     } catch (err) {
