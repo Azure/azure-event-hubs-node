@@ -321,7 +321,7 @@ describe("EventHub Receiver", function () {
       }
     });
 
-    it.skip("should receive 'QuotaExceededError' when attempting to connect more than 5 receivers to a partition in a consumer group", async function () {
+    it("should receive 'QuotaExceededError' when attempting to connect more than 5 receivers to a partition in a consumer group", async function () {
       const partitionId = hubInfo.partitionIds[0];
       try {
         const rcvrs = await Promise.all([
@@ -355,12 +355,13 @@ describe("EventHub Receiver", function () {
           });
           rcvrs.push(failedRcvr);
         } catch (err) {
-          console.log("### Receivers length: ", rcvrs.length);
-          console.log(err);
+          rcvrs.length.should.equal(5);
+          should.equal(true, err instanceof Errors.QuotaExceededError);
         }
       } catch (err) {
-        console.log("uber catch");
+        //console.log("uber catch");
         console.log(err);
+        throw new Error("Should not have reached here.");
       }
     });
   });
