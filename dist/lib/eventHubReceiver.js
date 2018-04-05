@@ -73,7 +73,7 @@ class EventHubReceiver extends events_1.EventEmitter {
                     this._receiver.on(Constants.message, onMessage);
                 }
             }
-            if (event === Constants.receiverError) {
+            if (event === Constants.error) {
                 if (this._session && this._receiver) {
                     this._receiver.on(Constants.receiverError, onError);
                 }
@@ -82,12 +82,12 @@ class EventHubReceiver extends events_1.EventEmitter {
         this.on("removeListener", (event) => {
             if (event === Constants.message) {
                 if (this._session && this._receiver) {
-                    this._receiver.on(Constants.message, onMessage);
+                    this._receiver.removeListener(Constants.message, onMessage);
                 }
             }
-            if (event === Constants.receiverError) {
+            if (event === Constants.error) {
                 if (this._session && this._receiver) {
-                    this._receiver.on(Constants.receiverError, onError);
+                    this._receiver.removeListener(Constants.receiverError, onError);
                 }
             }
         });
@@ -141,7 +141,7 @@ class EventHubReceiver extends events_1.EventEmitter {
                     console.log("$$$$$ %s receiverError", this.name, receiverError);
                     debug(`An error occurred while creating the receiver "${this.name}" : `, receiverError);
                 };
-                this._session.on("receiver_error", handleReceiverError);
+                this._session.on(Constants.receiverError, handleReceiverError);
                 this._receiver = await rheaPromise.createReceiver(this._session, rcvrOptions);
                 // this._receiver.on("receiver_error", (context) => {
                 //   return Promise.reject(errors.translate(context.receiver.error));
@@ -150,7 +150,7 @@ class EventHubReceiver extends events_1.EventEmitter {
                 if (receiverError) {
                     throw receiverError;
                 }
-                this.removeListener("receiver_error", handleReceiverError);
+                this._session.removeListener(Constants.receiverError, handleReceiverError);
                 debug(`[${this._context.connectionId}] Receiver "${this.name}" created with receiver options: \n${JSON.stringify(rcvrOptions, undefined, 2)}`);
             }
             debug(`[${this._context.connectionId}] Negotatited claim for receiver "${this.name}" with with partition "${this.partitionId}"`);

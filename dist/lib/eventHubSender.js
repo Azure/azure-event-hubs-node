@@ -38,16 +38,16 @@ class EventHubSender extends events_1.EventEmitter {
             this.emit(Constants.error, errors.translate(context.sender.error));
         };
         this.on("newListener", (event) => {
-            if (event === Constants.senderError) {
+            if (event === Constants.error) {
                 if (this._session && this._sender) {
                     this._sender.on(Constants.senderError, onError);
                 }
             }
         });
         this.on("removeListener", (event) => {
-            if (event === Constants.senderError) {
+            if (event === Constants.error) {
                 if (this._session && this._sender) {
-                    this._sender.on(Constants.senderError, onError);
+                    this._sender.removeListener(Constants.senderError, onError);
                 }
             }
         });
@@ -76,7 +76,7 @@ class EventHubSender extends events_1.EventEmitter {
                     senderError = _1.Errors.translate(context.sender.error);
                     debug(`An error occurred while creating the sender "${this.name}" : `, senderError);
                 };
-                this._sender.on("sender_error", handleSenderError);
+                this._session.on(Constants.senderError, handleSenderError);
                 let options = {
                     target: {
                         address: this.address
@@ -87,7 +87,7 @@ class EventHubSender extends events_1.EventEmitter {
                 if (senderError) {
                     throw senderError;
                 }
-                this.removeListener("sender_error", handleSenderError);
+                this._session.removeListener(Constants.senderError, handleSenderError);
                 debug(`[${this._context.connectionId}] Sender "${this.name}" created with sender options: \n${JSON.stringify(options, undefined, 2)}`);
             }
             debug(`[${this._context.connectionId}] Negotatited claim for sender "${this.name}" with with partition` +
