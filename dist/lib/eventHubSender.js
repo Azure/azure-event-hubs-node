@@ -70,7 +70,13 @@ class EventHubSender extends events_1.EventEmitter {
             // Negotitate the CBS claim.
             await this._context.cbsSession.negotiateClaim(this.audience, this._context.connection, tokenObject);
             if (!this._session && !this._sender) {
+                let senderError;
                 this._session = await rheaPromise.createSession(this._context.connection);
+                const handleSenderError = (context) => {
+                    senderError = _1.Errors.translate(context.sender.error);
+                    debug(`An error occurred while creating the sender "${this.name}" : `, senderError);
+                };
+                this._sender.on("sender_error", handleSenderError);
                 let options = {
                     target: {
                         address: this.address
@@ -78,9 +84,14 @@ class EventHubSender extends events_1.EventEmitter {
                 };
                 this._sender = await rheaPromise.createSender(this._session, options);
                 this.name = this._sender.name;
-                debug(`[${this._context.connectionId}] Negotatited claim for sender "${this.name}" with with partition` +
-                    ` "${this.partitionId}"`);
+                if (senderError) {
+                    throw senderError;
+                }
+                this.removeListener("sender_error", handleSenderError);
+                debug(`[${this._context.connectionId}] Sender "${this.name}" created with sender options: \n${JSON.stringify(options, undefined, 2)}`);
             }
+            debug(`[${this._context.connectionId}] Negotatited claim for sender "${this.name}" with with partition` +
+                ` "${this.partitionId}"`);
             this._ensureTokenRenewal();
         }
         catch (err) {

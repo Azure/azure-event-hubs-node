@@ -42,3 +42,4 @@ export declare const defaultLock: AsyncLock;
  * @returns {Promise<T>} - Resolved promise
  */
 export declare function delay<T>(t: number, value?: T): Promise<T>;
+export declare type Func<T, V> = (a: T) => V;

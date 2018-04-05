@@ -221,7 +221,7 @@ describe("EventHub Receiver", function () {
     it("should receive messages correctly", async function () {
       const partitionId = hubInfo.partitionIds[0];
       receiver = await client.createReceiver(partitionId);
-      const datas = await receiver.receive(5, 25);
+      const datas = await receiver.receive(5, 10);
       // console.log("received messages: ", datas);
       datas.length.should.equal(5);
     });

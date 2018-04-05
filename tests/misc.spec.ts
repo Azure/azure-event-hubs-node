@@ -56,7 +56,7 @@ describe("Misc tests", function () {
     datas[0].body.toString().should.equal(msgString)
   });
 
-  it("should consistently send messages with partitionkey to a partition", async function () {
+  it("should consistently send messages with partitionkey to a partitionId", async function () {
     const msgToSendCount = 50;
     let partitionOffsets = {};
     console.log("Discovering end of stream on each partition.");

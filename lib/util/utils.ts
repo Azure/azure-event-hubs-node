@@ -63,3 +63,4 @@ export function delay<T>(t: number, value?: T): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(value), t));
 }
 
+export type Func<T, V> = (a: T) => V;
