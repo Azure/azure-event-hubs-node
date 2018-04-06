@@ -15,15 +15,17 @@ export async function connect(options: ConnectionOptions): Promise<any> {
       connection.removeListener('connection_close', onClose);
       connection.removeListener('disconnected', onClose);
       debug("Resolving the promise with amqp connection.");
-      resolve(connection);
+      process.nextTick(() => {
+        resolve(connection);
+      });
     }
 
-    function onClose(err: any): void {
+    function onClose(context: Context): void {
       connection.removeListener('connection_open', onOpen);
       connection.removeListener('connection_close', onClose);
       connection.removeListener('disconnected', onClose);
-      debug(`Error occurred while establishing amqp connection.`, err.connection.error);
-      reject(err);
+      debug(`Error occurred while establishing amqp connection.`, context.connection.error);
+      reject(context.connection.error);
     }
 
     connection.once('connection_open', onOpen);
@@ -40,14 +42,16 @@ export async function createSession(connection: any): Promise<any> {
       session.removeListener('session_open', onOpen);
       session.removeListener('session_close', onClose);
       debug("Resolving the promise with amqp session.");
-      resolve(session);
+      process.nextTick(() => {
+        resolve(session);
+      });
     }
 
-    function onClose(err: any): void {
+    function onClose(context: Context): void {
       session.removeListener('session_open', onOpen);
       session.removeListener('session_close', onClose);
-      debug(`Error occurred while establishing a session over amqp connection.`, err.session.error);
-      reject(err);
+      debug(`Error occurred while establishing a session over amqp connection.`, context.session.error);
+      reject(context.session.error);
     }
 
     session.once('session_open', onOpen);
@@ -65,14 +69,16 @@ export async function createSender(session: any, options?: SenderOptions): Promi
       sender.removeListener('sendable', onOpen);
       sender.removeListener('sender_close', onClose);
       debug(`Resolving the promise with amqp sender "${sender.name}".`);
-      resolve(sender);
+      process.nextTick(() => {
+        resolve(sender);
+      });
     }
 
-    function onClose(err: any): void {
+    function onClose(context: Context): void {
       sender.removeListener('sendable', onOpen);
       sender.removeListener('sender_close', onClose);
-      debug(`Error occurred while creating a sender over amqp connection.`, err.sender.error);
-      reject(err);
+      debug(`Error occurred while creating a sender over amqp connection.`, context.sender.error);
+      reject(context.sender.error);
     }
 
     sender.once('sendable', onOpen);
@@ -88,14 +94,16 @@ export async function createReceiver(session: any, options?: ReceiverOptions): P
       receiver.removeListener('receiver_open', onOpen);
       receiver.removeListener('receiver_close', onClose);
       debug(`Resolving the promise with amqp receiver "${receiver.name}".`);
-      resolve(receiver);
+      process.nextTick(() => {
+        resolve(receiver);
+      });
     }
 
-    function onClose(err: any): void {
+    function onClose(context: Context): void {
       receiver.removeListener('receiver_open', onOpen);
       receiver.removeListener('receiver_close', onClose);
-      debug(`Error occurred while creating a receiver over amqp connection.`, err.receiver.error);
-      reject(err);
+      debug(`Error occurred while creating a receiver over amqp connection.`, context.receiver.error);
+      reject(context.receiver.error);
     }
 
     receiver.once('receiver_open', onOpen);

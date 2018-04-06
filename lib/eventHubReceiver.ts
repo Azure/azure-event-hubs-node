@@ -167,12 +167,14 @@ export class EventHubReceiver extends EventEmitter {
     this.on("newListener", (event) => {
       if (event === Constants.message) {
         if (this._session && this._receiver) {
+          debug("Attaching an event handler for the 'message' event on the underlying amqp receiver: ", this.name!);
           this._receiver.on(Constants.message, onMessage);
         }
       }
 
       if (event === Constants.error) {
         if (this._session && this._receiver) {
+          debug("Attaching an event handler for the 'receiver_error' event on the underlying amqp receiver: ", this.name!);
           this._receiver.on(Constants.receiverError, onError);
         }
       }
@@ -181,12 +183,14 @@ export class EventHubReceiver extends EventEmitter {
     this.on("removeListener", (event) => {
       if (event === Constants.message) {
         if (this._session && this._receiver) {
+          debug("Removing an event handler for the 'message' event on the underlying amqp receiver: ", this.name!);
           this._receiver.removeListener(Constants.message, onMessage);
         }
       }
 
       if (event === Constants.error) {
         if (this._session && this._receiver) {
+          debug("Removing an event handler for the 'receiver_error' event on the underlying amqp receiver: ", this.name!);
           this._receiver.removeListener(Constants.receiverError, onError);
         }
       }
@@ -237,16 +241,19 @@ export class EventHubReceiver extends EventEmitter {
         this._session = await rheaPromise.createSession(this._context.connection);
         const handleReceiverError = (context: rheaPromise.Context) => {
           receiverError = errors.translate(context.receiver.error);
-          console.log("$$$$$ %s receiverError", this.name, receiverError);
           debug(`An error occurred while creating the receiver "${this.name}" : `, receiverError);
         };
         this._session.on(Constants.receiverError, handleReceiverError);
+        debug("Trying to create a receiver...");
         this._receiver = await rheaPromise.createReceiver(this._session, rcvrOptions);
-        // this._receiver.on("receiver_error", (context) => {
-        //   return Promise.reject(errors.translate(context.receiver.error));
-        // });
+        debug("Promise to create the receiver resolved. Created receiver with name: ", this.name);
+
         this.name = this._receiver.name;
         if (receiverError) {
+          // There are cases where the EH service sends an attach frame, which causes rhea to emit receiver_open event
+          // thus resolving the promise to create a receiver and moments later the service sends back a detach frame
+          // indicating that there was some error. Hence we check for receiverError, even after the promise has resolved.
+          debug("throwing the receiverError, ", receiverError);
           throw receiverError;
         }
         this._session.removeListener(Constants.receiverError, handleReceiverError);
@@ -255,6 +262,8 @@ export class EventHubReceiver extends EventEmitter {
       debug(`[${this._context.connectionId}] Negotatited claim for receiver "${this.name}" with with partition "${this.partitionId}"`);
       this._ensureTokenRenewal();
     } catch (err) {
+      if (err.value || (err.constructor && err.constructor.name === "c")) err = Errors.translate(err);
+      debug("Will reject the promise to create the receiver with error", err);
       return Promise.reject(err);
     }
   }

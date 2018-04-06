@@ -5,6 +5,8 @@ import * as chai from "chai";
 const should = chai.should();
 import * as chaiAsPromised from "chai-as-promised";
 chai.use(chaiAsPromised);
+import * as debugModule from "debug";
+const debug = debugModule("azure:event-hubs:hubruntime-spec");
 
 import { EventHubClient } from "../lib";
 describe("RuntimeInformation", function () {
@@ -30,7 +32,7 @@ describe("RuntimeInformation", function () {
   it("gets the hub runtime information", async function () {
     client = EventHubClient.createFromConnectionString(service.connectionString!, service.path);
     const hubRuntimeInfo = await client.getHubRuntimeInformation();
-    // console.log(hubRuntimeInfo);
+    debug(hubRuntimeInfo);
     hubRuntimeInfo.path.should.equal(service.path);
     hubRuntimeInfo.type.should.equal("com.microsoft:eventhub");
     hubRuntimeInfo.partitionIds.should.have.members(arrayOfIncreasingNumbersFromZero(hubRuntimeInfo.partitionIds.length));
@@ -41,7 +43,7 @@ describe("RuntimeInformation", function () {
   it("gets the partition runtime information", async function () {
     client = EventHubClient.createFromConnectionString(service.connectionString!, service.path);
     const partitionRuntimeInfo = await client.getPartitionInformation("0");
-    // console.log(partitionRuntimeInfo);
+    debug(partitionRuntimeInfo);
     partitionRuntimeInfo.partitionId.should.equal("0");
     partitionRuntimeInfo.type.should.equal("com.microsoft:partition");
     partitionRuntimeInfo.hubPath.should.equal(service.path);

@@ -86,6 +86,7 @@ export class EventHubSender extends EventEmitter {
     this.on("newListener", (event) => {
       if (event === Constants.error) {
         if (this._session && this._sender) {
+          debug("Attaching an event handler for the 'sender_error' event on the underlying amqp sender: ", this.name!);
           this._sender.on(Constants.senderError, onError);
         }
       }
@@ -94,6 +95,7 @@ export class EventHubSender extends EventEmitter {
     this.on("removeListener", (event) => {
       if (event === Constants.error) {
         if (this._session && this._sender) {
+          debug("Removing an event handler for the 'sender_error' event on the underlying amqp sender: ", this.name!);
           this._sender.removeListener(Constants.senderError, onError);
         }
       }
@@ -131,9 +133,15 @@ export class EventHubSender extends EventEmitter {
             address: this.address
           }
         };
+        debug("Trying to create a sender...");
         this._sender = await rheaPromise.createSender(this._session, options);
         this.name = this._sender.name;
+        debug("Promise to create the sender resolved. Created sender with name: ", this.name);
         if (senderError) {
+          // There are cases where the EH service sends an attach frame, which causes rhea to emit sender_open event
+          // thus resolving the promise to create a sender and moments later the service sends back a detach frame
+          // indicating that there was some error. Hence we check for senderError, even after the promise has resolved.
+          debug("throwing the senderError, ", senderError);
           throw senderError;
         }
         this._session.removeListener(Constants.senderError, handleSenderError);
@@ -143,6 +151,8 @@ export class EventHubSender extends EventEmitter {
         ` "${this.partitionId}"`);
       this._ensureTokenRenewal();
     } catch (err) {
+      if (err.value || (err.constructor && err.constructor.name === "c")) err = Errors.translate(err);
+      debug("Will reject the promise to create the sender with error", err);
       return Promise.reject(err);
     }
   }

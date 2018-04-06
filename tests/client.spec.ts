@@ -5,8 +5,10 @@ import * as chai from "chai";
 const should = chai.should();
 import * as chaiAsPromised from "chai-as-promised";
 chai.use(chaiAsPromised);
-
-import { EventHubReceiver, EventHubSender, EventHubClient, Errors } from "../lib";
+import * as debugModule from "debug";
+const debug = debugModule("azure:event-hubs:client-spec");
+import { EventHubReceiver, EventHubSender, EventHubClient, Errors, EventHubPartitionRuntimeInformation } from "../lib";
+import { delay } from "../lib/util/utils";
 
 function testFalsyValues(testFn) {
   [null, undefined, "", 0].forEach(function (value) {
@@ -70,62 +72,142 @@ before("validate environment", function () {
     "define EVENTHUB_NAME in your environment before running integration tests.");
 });
 
-const services = [
-  { name: "Event Hubs", connectionString: process.env.EVENTHUB_CONNECTION_STRING, path: process.env.EVENTHUB_NAME }
-];
+const service = { connectionString: process.env.EVENTHUB_CONNECTION_STRING, path: process.env.EVENTHUB_NAME }
 
-services.forEach(function (service) {
-  describe("EventHubClient on " + service.name, function () {
-    this.timeout(60000);
-    let client: EventHubClient;
+describe("EventHubClient on ", function () {
+  this.timeout(60000);
+  let client: EventHubClient;
 
-    afterEach('close the connection', async function () {
-      await client.close();
+  afterEach('close the connection', async function () {
+    debug(">>>>>>>> afterEach: closing the client.");
+    if (client) await client.close();
+  });
+
+  describe("#close", function () {
+    it("is a no-op when the connection is already closed", function () {
+      client = EventHubClient.createFromConnectionString(service.connectionString!, service.path);
+      return client.close().should.be.fulfilled;
     });
+  });
 
-    describe("#close", function () {
-      it("is a no-op when the connection is already closed", function () {
+  describe("getPartitionIds", function () {
+    it("returns an array of partition IDs", async function () {
+      client = EventHubClient.createFromConnectionString(service.connectionString!, service.path);
+      const ids = await client.getPartitionIds();
+      ids.should.have.members(arrayOfIncreasingNumbersFromZero(ids.length));
+    });
+  });
+
+  describe("createSender", function () {
+    const ids = [0, "0", "1"];
+    ids.forEach(function (partitionId) {
+      it("returns a Sender when partitionId is " + partitionId, async function () {
         client = EventHubClient.createFromConnectionString(service.connectionString!, service.path);
-        return client.close().should.be.fulfilled;
+        const sender = await client.createSender(partitionId);
+        sender.should.be.an.instanceof(EventHubSender);
+        should.exist(sender.name!);
+        sender.partitionId!.should.equal(partitionId);
       });
     });
+  });
 
-    describe("getPartitionIds", function () {
-      it("returns an array of partition IDs", async function () {
+  describe("createReceiver", function () {
+    it("returns a Receiver", async function () {
+      client = EventHubClient.createFromConnectionString(service.connectionString!, service.path);
+      const receiver = await client.createReceiver("0");
+      should.equal(true, receiver instanceof EventHubReceiver);
+      await receiver.close();
+    });
+  });
+
+  describe("non existent eventhub", function () {
+    it("should throw MessagingEntityNotFoundError while getting hub runtime info", async function () {
+      try {
+        client = EventHubClient.createFromConnectionString(service.connectionString!, "bad" + Math.random());
+        await client.getHubRuntimeInformation();
+      } catch (err) {
+        debug(err);
+        should.equal(true, err instanceof Errors.MessagingEntityNotFoundError);
+      }
+    });
+
+    it("should throw MessagingEntityNotFoundError while getting partition runtime info", async function () {
+      try {
+        client = EventHubClient.createFromConnectionString(service.connectionString!, "bad" + Math.random());
+        await client.getPartitionInformation("0");
+      } catch (err) {
+        debug(err);
+        should.equal(true, err instanceof Errors.MessagingEntityNotFoundError);
+      }
+    });
+
+    it("should throw MessagingEntityNotFoundError while creating a sender", async function () {
+      try {
+        client = EventHubClient.createFromConnectionString(service.connectionString!, "bad" + Math.random());
+        await client.createSender("0");
+      } catch (err) {
+        debug(err);
+        should.equal(true, err instanceof Errors.MessagingEntityNotFoundError);
+      }
+    });
+
+    it("should throw MessagingEntityNotFoundError while creating a receiver", async function () {
+      try {
+        client = EventHubClient.createFromConnectionString(service.connectionString!, "bad" + Math.random());
+        await client.createReceiver("0");
+      } catch (err) {
+        debug(err);
+        should.equal(true, err instanceof Errors.MessagingEntityNotFoundError);
+      }
+    });
+  });
+
+  describe("non existent consumer group", function () {
+    it("should throw MessagingEntityNotFoundError while creating a receiver", async function () {
+      try {
         client = EventHubClient.createFromConnectionString(service.connectionString!, service.path);
-        const ids = await client.getPartitionIds();
-        ids.should.have.members(arrayOfIncreasingNumbersFromZero(ids.length));
-      });
+        debug(">>>>>>>> client created.");
+        let receiver = await client.createReceiver("0", { consumerGroup: "some-randome-name" });
+        debug(">>>>>>>> receiver created.", receiver.name!);
+        receiver.on("error", (error) => {
+          debug(">>>>>>>> error occurred", error);
+          should.equal(true, error instanceof Errors.MessagingEntityNotFoundError);
+        });
+        let d = await receiver.receive(10, 5);
+        debug(">>>>>>>> attached the error handler on the receiver...");
+      } catch (err) {
+        debug(">>> Some error", err);
+        throw new Error("This code path must not have hit.. " + JSON.stringify(err));
+      }
+    });
+  });
 
-      it("returns MessagingEntityNotFoundError if the server does not recognize the Event Hub path", async function () {
+  describe("on invalid partition ids like", function () {
+    const invalidIds = ["XYZ", "-1", "1000", "-", " "];
+    let pinfo: EventHubPartitionRuntimeInformation;
+    invalidIds.forEach(function (id) {
+      it(`"${id}" should throw an error`, async function () {
         try {
-          client = EventHubClient.createFromConnectionString(service.connectionString!, "bad" + Math.random());
-          await client.getPartitionIds();
+          client = EventHubClient.createFromConnectionString(service.connectionString!, service.path);
+          pinfo = await client.getPartitionInformation(id);
         } catch (err) {
-          should.equal(true, err instanceof Errors.MessagingEntityNotFoundError);
+          debug(`>>>> Received error - `, err);
+          should.exist(err);
+          should.equal(true, err instanceof Errors.InvalidOperationError);
         }
       });
     });
 
-    describe("createSender", function () {
-      const ids = [0, "0", "1"];
-      ids.forEach(function (partitionId) {
-        it("returns a Sender when partitionId is " + partitionId, async function () {
+    const invalidIds2 = ["", null];
+    invalidIds2.forEach(function (id) {
+      it(`"${id}" should throw an error`, async function () {
+        try {
           client = EventHubClient.createFromConnectionString(service.connectionString!, service.path);
-          const sender = await client.createSender(partitionId);
-          sender.should.be.an.instanceof(EventHubSender);
-          should.exist(sender.name!);
-          sender.partitionId!.should.equal(partitionId);
-        });
-      });
-    });
-
-    describe("createReceiver", function () {
-      it("returns a Receiver", async function () {
-        client = EventHubClient.createFromConnectionString(service.connectionString!, service.path);
-        const receiver = await client.createReceiver("0");
-        should.equal(true, receiver instanceof EventHubReceiver);
-        await receiver.close();
+          pinfo = await client.getPartitionInformation(id);
+        } catch (err) {
+          debug(`>>>> Received error - `, err);
+          should.exist(err);
+        }
       });
     });
   });

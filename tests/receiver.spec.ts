@@ -6,8 +6,10 @@ import * as uuid from "uuid/v4";
 const should = chai.should();
 import * as chaiAsPromised from "chai-as-promised";
 chai.use(chaiAsPromised);
-
+import * as debugModule from "debug";
+const debug = debugModule("azure:event-hubs:receiver-spec");
 import { EventPosition, EventHubClient, EventHubReceiver, EventData, Errors, EventHubRuntimeInformation, EventHubSender } from "../lib";
+import { ArgumentError } from "../lib/errors";
 
 describe("EventHub Receiver", function () {
   this.timeout(600000);
@@ -31,11 +33,11 @@ describe("EventHub Receiver", function () {
   afterEach("close the sender link", async function () {
     if (sender) {
       await sender.close();
-      // console.log("Sender closed.");
+      debug("Sender closed.");
     }
     if (receiver) {
       await receiver.close();
-      // console.log("Receiver closed.");
+      debug("Receiver closed.");
     }
   });
 
@@ -48,9 +50,9 @@ describe("EventHub Receiver", function () {
           body: "Hello awesome world " + i
         }
         await sender.send(ed);
-        console.log("sent message - " + i);
+        debug("sent message - " + i);
       }
-      // console.log("Creating new receiver with offset EndOfStream");
+      debug("Creating new receiver with offset EndOfStream");
       receiver = await client.createReceiver(partitionId, { eventPosition: EventPosition.fromEnd() });
       // send a new message. We should only receive this new message.
       const uid = uuid();
@@ -61,12 +63,12 @@ describe("EventHub Receiver", function () {
         }
       }
       await sender.send(ed);
-      // console.log(">>>>>>> Sent the new message after creating the receiver. We should only receive this message.");
+      debug(">>>>>>> Sent the new message after creating the receiver. We should only receive this message.");
       const datas = await receiver.receive(10, 5);
-      // console.log("received messages: ", datas);
+      debug("received messages: ", datas);
       datas.length.should.equal(1);
       datas[0].applicationProperties!.stamp.should.equal(uid);
-      // console.log("Next receive on this partition should not receive any messages.");
+      debug("Next receive on this partition should not receive any messages.");
       const datas2 = await receiver.receive(10, 10);
       datas2.length.should.equal(0);
     });
@@ -75,7 +77,7 @@ describe("EventHub Receiver", function () {
       const partitionId = hubInfo.partitionIds[0];
       const pInfo = await client.getPartitionInformation(partitionId);
       sender = await client.createSender(partitionId);
-      // console.log(`Creating new receiver with last enqueued offset: "${pInfo.lastEnqueuedOffset}".`);
+      debug(`Creating new receiver with last enqueued offset: "${pInfo.lastEnqueuedOffset}".`);
       receiver = await client.createReceiver(partitionId, { eventPosition: EventPosition.fromOffset(pInfo.lastEnqueuedOffset) });
       // send a new message. We should only receive this new message.
       const uid = uuid();
@@ -86,12 +88,12 @@ describe("EventHub Receiver", function () {
         }
       }
       await sender.send(ed);
-      // console.log("Sent the new message after creating the receiver. We should only receive this message.");
+      debug("Sent the new message after creating the receiver. We should only receive this message.");
       const datas = await receiver.receive(10, 5);
-      // console.log("received messages: ", datas);
+      debug("received messages: ", datas);
       datas.length.should.equal(1);
       datas[0].applicationProperties!.stamp.should.equal(uid);
-      // console.log("Next receive on this partition should not receive any messages.");
+      debug("Next receive on this partition should not receive any messages.");
       const datas2 = await receiver.receive(10, 10);
       datas2.length.should.equal(0);
     });
@@ -107,7 +109,7 @@ describe("EventHub Receiver", function () {
         }
       }
       await sender.send(ed);
-      // console.log(`Sent message 1 with stamp: ${uid}.`);
+      debug(`Sent message 1 with stamp: ${uid}.`);
       const pInfo = await client.getPartitionInformation(partitionId);
       const uid2 = uuid();
       const ed2: EventData = {
@@ -117,16 +119,16 @@ describe("EventHub Receiver", function () {
         }
       }
       await sender.send(ed2);
-      // console.log(`Sent message 2 with stamp: ${uid} after getting the enqueued offset.`);
-      // console.log(`Creating new receiver with last enqueued offset: "${pInfo.lastEnqueuedOffset}".`);
+      debug(`Sent message 2 with stamp: ${uid} after getting the enqueued offset.`);
+      debug(`Creating new receiver with last enqueued offset: "${pInfo.lastEnqueuedOffset}".`);
       receiver = await client.createReceiver(partitionId, { eventPosition: EventPosition.fromOffset(pInfo.lastEnqueuedOffset, true) });
-      // console.log("We should receive the last 2 messages.");
+      debug("We should receive the last 2 messages.");
       const datas = await receiver.receive(10, 5);
-      // console.log("received messages: ", datas);
+      debug("received messages: ", datas);
       datas.length.should.equal(2);
       datas[0].applicationProperties!.stamp.should.equal(uid);
       datas[1].applicationProperties!.stamp.should.equal(uid2);
-      // console.log("Next receive on this partition should not receive any messages.");
+      debug("Next receive on this partition should not receive any messages.");
       const datas2 = await receiver.receive(10, 10);
       datas2.length.should.equal(0);
     });
@@ -135,7 +137,7 @@ describe("EventHub Receiver", function () {
       const partitionId = hubInfo.partitionIds[0];
       const pInfo = await client.getPartitionInformation(partitionId);
       sender = await client.createSender(partitionId);
-      // console.log(`Creating new receiver with last enqueued time: "${pInfo.lastEnqueuedTimeUtc}".`);
+      debug(`Creating new receiver with last enqueued time: "${pInfo.lastEnqueuedTimeUtc}".`);
       receiver = await client.createReceiver(partitionId, { eventPosition: EventPosition.fromEnqueuedTime(pInfo.lastEnqueuedTimeUtc) });
       // send a new message. We should only receive this new message.
       const uid = uuid();
@@ -146,12 +148,12 @@ describe("EventHub Receiver", function () {
         }
       }
       await sender.send(ed);
-      // console.log("Sent the new message after creating the receiver. We should only receive this message.");
+      debug("Sent the new message after creating the receiver. We should only receive this message.");
       const datas = await receiver.receive(10, 5);
-      // console.log("received messages: ", datas);
+      debug("received messages: ", datas);
       datas.length.should.equal(1);
       datas[0].applicationProperties!.stamp.should.equal(uid);
-      // console.log("Next receive on this partition should not receive any messages.");
+      debug("Next receive on this partition should not receive any messages.");
       const datas2 = await receiver.receive(10, 15);
       datas2.length.should.equal(0);
     });
@@ -169,14 +171,14 @@ describe("EventHub Receiver", function () {
         }
       }
       await sender.send(ed);
-      // console.log("Sent the new message after creating the receiver. We should only receive this message.");
-      // console.log(`Creating new receiver with last enqueued sequence number: "${pInfo.lastSequenceNumber}".`);
+      debug("Sent the new message after creating the receiver. We should only receive this message.");
+      debug(`Creating new receiver with last enqueued sequence number: "${pInfo.lastSequenceNumber}".`);
       receiver = await client.createReceiver(partitionId, { eventPosition: EventPosition.fromSequenceNumber(pInfo.lastSequenceNumber) });
       const datas = await receiver.receive(10, 10);
-      // console.log("received messages: ", datas);
+      debug("received messages: ", datas);
       datas.length.should.equal(1);
       datas[0].applicationProperties!.stamp.should.equal(uid);
-      // console.log("Next receive on this partition should not receive any messages.");
+      debug("Next receive on this partition should not receive any messages.");
       const datas2 = await receiver.receive(10, 10);
       datas2.length.should.equal(0);
     });
@@ -192,7 +194,7 @@ describe("EventHub Receiver", function () {
         }
       }
       await sender.send(ed);
-      // console.log(`Sent message 1 with stamp: ${uid}.`);
+      debug(`Sent message 1 with stamp: ${uid}.`);
       const pInfo = await client.getPartitionInformation(partitionId);
       const uid2 = uuid();
       const ed2: EventData = {
@@ -202,16 +204,16 @@ describe("EventHub Receiver", function () {
         }
       }
       await sender.send(ed2);
-      // console.log(`Sent message 2 with stamp: ${uid}.`);
-      // console.log(`Creating new receiver with last sequence number: "${pInfo.lastSequenceNumber}".`);
+      debug(`Sent message 2 with stamp: ${uid}.`);
+      debug(`Creating new receiver with last sequence number: "${pInfo.lastSequenceNumber}".`);
       receiver = await client.createReceiver(partitionId, { eventPosition: EventPosition.fromSequenceNumber(pInfo.lastSequenceNumber, true) });
-      // console.log("We should receive the last 2 messages.");
+      debug("We should receive the last 2 messages.");
       const datas = await receiver.receive(10, 10);
-      // console.log("received messages: ", datas);
+      debug("received messages: ", datas);
       datas.length.should.equal(2);
       datas[0].applicationProperties!.stamp.should.equal(uid);
       datas[1].applicationProperties!.stamp.should.equal(uid2);
-      // console.log("Next receive on this partition should not receive any messages.");
+      debug("Next receive on this partition should not receive any messages.");
       const datas2 = await receiver.receive(10, 10);
       datas2.length.should.equal(0);
     });
@@ -222,7 +224,7 @@ describe("EventHub Receiver", function () {
       const partitionId = hubInfo.partitionIds[0];
       receiver = await client.createReceiver(partitionId);
       const datas = await receiver.receive(5, 10);
-      // console.log("received messages: ", datas);
+      debug("received messages: ", datas);
       datas.length.should.equal(5);
     });
   });
@@ -236,15 +238,15 @@ describe("EventHub Receiver", function () {
           body: "Hello awesome world " + i
         }
         await sender.send(ed);
-        // console.log("sent message - " + i);
+        debug("sent message - " + i);
       }
-      // console.log("Getting the partition information");
+      debug("Getting the partition information");
       const pInfo = await client.getPartitionInformation(partitionId);
-      // console.log("paritition info: ", pInfo);
-      // console.log("Creating new receiver with offset EndOfStream");
+      debug("paritition info: ", pInfo);
+      debug("Creating new receiver with offset EndOfStream");
       receiver = await client.createReceiver(partitionId, { eventPosition: EventPosition.fromStart(), enableReceiverRuntimeMetric: true });
       let datas = await receiver.receive(1, 10);
-      // console.log("receiver.runtimeInfo ", receiver.runtimeInfo);
+      debug("receiver.runtimeInfo ", receiver.runtimeInfo);
       datas.length.should.equal(1);
       should.exist(receiver.runtimeInfo);
       receiver.runtimeInfo!.lastEnqueuedOffset!.should.equal(pInfo.lastEnqueuedOffset);
@@ -262,23 +264,23 @@ describe("EventHub Receiver", function () {
         let events: EventData[] = [];
         const epochRcvr1 = await client.createReceiver(partitionId, { epoch: 1, eventPosition: EventPosition.fromEnd() });
         epochRcvr1.on("error", (error) => {
-          //console.log(">>>> epoch Receiver 1", error);
+          //debug(">>>> epoch Receiver 1", error);
           should.exist(error);
           should.equal(true, error instanceof Errors.ReceiverDisconnectedError);
         });
-        // console.log("Created epoch receiver 1 %s", epochRcvr1.name);
+        debug("Created epoch receiver 1 %s", epochRcvr1.name);
         events = await epochRcvr1.receive(20, 10);
-        // console.log("Received events from epoch receiver 1 %s - %o", epochRcvr1.name, events.length);
+        debug("Received events from epoch receiver 1 %s - %o", epochRcvr1.name, events.length);
         const epochRcvr2 = await client.createReceiver(partitionId, { epoch: 2, eventPosition: EventPosition.fromEnd() });
-        // console.log("Created epoch receiver 2 %s", epochRcvr2.name);
+        debug("Created epoch receiver 2 %s", epochRcvr2.name);
         epochRcvr2.on("error", (error) => {
-          console.log(">>>> epoch Receiver 2", error);
+          debug(">>>> epoch Receiver 2", error);
           throw new Error("An Error should not have happened for epoch receiver with epoch value 2.");
         });
         events = await epochRcvr2.receive(20, 10);
-        // console.log(">>>> Received events from epoch receiver 2 %s - %o", epochRcvr2.name, events.length);
+        debug(">>>> Received events from epoch receiver 2 %s - %o", epochRcvr2.name, events.length);
       } catch (err) {
-        console.log("uber catch: ", err);
+        debug("uber catch: ", err);
       }
     });
 
@@ -288,23 +290,23 @@ describe("EventHub Receiver", function () {
         let events: EventData[] = [];
         const epochRcvr = await client.createReceiver(partitionId, { epoch: 1, eventPosition: EventPosition.fromEnd() });
         epochRcvr.on("error", (error) => {
-          console.log(">>>> epoch Receiver 1", error);
+          debug(">>>> epoch Receiver 1", error);
           throw new Error("An Error should not have happened for epoch receiver with epoch value 1.");
         });
-        // console.log("Created epoch receiver 1 %s", epochRcvr.name);
+        debug("Created epoch receiver 1 %s", epochRcvr.name);
         events = await epochRcvr.receive(20, 10);
-        // console.log("Received events from epoch receiver 1 %s - %o", epochRcvr.name, events.length);
+        debug("Received events from epoch receiver 1 %s - %o", epochRcvr.name, events.length);
         const nonEpochRcvr = await client.createReceiver(partitionId, { eventPosition: EventPosition.fromEnd() });
         nonEpochRcvr.on("error", (error) => {
-          // console.log(">>>> non epoch Receiver", error);
+          debug(">>>> non epoch Receiver", error);
           should.exist(error);
           should.equal(true, error instanceof Errors.ReceiverDisconnectedError);
         });
-        // console.log("Created non epoch receiver %s", nonEpochRcvr.name);
+        debug("Created non epoch receiver %s", nonEpochRcvr.name);
         events = await nonEpochRcvr.receive(20, 10);
-        // console.log(">>>> Received events from non epoch receiver 2 %s - %o", epochRcvr.name, events.length);
+        debug(">>>> Received events from non epoch receiver 2 %s - %o", epochRcvr.name, events.length);
       } catch (err) {
-        console.log(err);
+        debug(err);
       }
     });
 
@@ -314,33 +316,68 @@ describe("EventHub Receiver", function () {
         let events: EventData[] = [];
         const nonEpochRcvr = await client.createReceiver(partitionId, { eventPosition: EventPosition.fromEnd() });
         nonEpochRcvr.on("error", (error) => {
-          // console.log(">>>> non epoch Receiver: ", error);
+          debug(">>>> non epoch Receiver: ", error);
           should.exist(error);
           should.equal(true, error instanceof Errors.ReceiverDisconnectedError);
         });
-        // console.log("Created non epoch receiver %s", nonEpochRcvr.name);
+        debug("Created non epoch receiver %s", nonEpochRcvr.name);
         events = await nonEpochRcvr.receive(20, 10);
-        // console.log(">>>> Received events from non epoch receiver %s - %o", nonEpochRcvr.name, events.length);
+        debug(">>>> Received events from non epoch receiver %s - %o", nonEpochRcvr.name, events.length);
         const epochRcvr = await client.createReceiver(partitionId, { epoch: 1, eventPosition: EventPosition.fromEnd() });
         epochRcvr.on("error", (error) => {
-          console.log(">>>> epoch Receiver: ", error);
+          debug(">>>> epoch Receiver: ", error);
           throw new Error("An Error should not have happened for epoch receiver with epoch value 1.");
         });
-        // console.log("Created epoch receiver %s", epochRcvr.name);
+        debug("Created epoch receiver %s", epochRcvr.name);
         events = await epochRcvr.receive(20, 10);
-        // console.log("Received events from epoch receiver 1 %s - %o", epochRcvr.name, events.length);
+        debug("Received events from epoch receiver 1 %s - %o", epochRcvr.name, events.length);
       } catch (err) {
-        console.log(err);
+        debug(err);
       }
     });
   });
 
   describe("Negative scenarios", function () {
+
+    describe("on invalid partition ids like", function () {
+      const invalidIds = ["XYZ", "-1", "1000", "-", " "];
+      invalidIds.forEach(function (id) {
+        it(`"${id}" should throw an error`, async function () {
+          try {
+            receiver = await client.createReceiver(id);
+            receiver.on("error", (error) => {
+              debug("Receiver %s received an error", receiver.name, error);
+              should.exist(error);
+              should.equal(true, error instanceof Errors.ArgumentOutOfRangeError || error instanceof Errors.InvalidOperationError);
+            });
+            debug("Created receiver and will be receiving messages from partition id ...", id);
+            const d = await receiver.receive(10, 3);
+            debug("received messages ", d.length);
+          } catch (err) {
+            debug(`>>>> This should not have happened. Received error - `, err);
+            throw err;
+          }
+        });
+      });
+
+      const invalidIds2 = ["", null];
+      invalidIds2.forEach(function (id) {
+        it(`"${id}" should throw an error`, async function () {
+          try {
+            receiver = await client.createReceiver(id);
+          } catch (err) {
+            debug(`>>>> Received error - `, err);
+            should.exist(err);
+          }
+        });
+      });
+    });
+
     it("should throw 'MessagingEntityNotFoundError' if a message is sent after the sender is closed", async function () {
       receiver = await client.createReceiver("0");
       receiver.should.be.instanceof(EventHubReceiver);
       await receiver.close();
-      console.log("closed receiver.");
+      debug("closed receiver.");
       try {
         await receiver.receive(10, 3);
       } catch (err) {
@@ -358,27 +395,27 @@ describe("EventHub Receiver", function () {
           client.createReceiver(partitionId, { eventPosition: EventPosition.fromStart(), identifier: "rcvr-4" }),
           client.createReceiver(partitionId, { eventPosition: EventPosition.fromStart(), identifier: "rcvr-5" })
         ]);
-        console.log(">>> Receivers length: ", rcvrs.length);
+        debug(">>> Receivers length: ", rcvrs.length);
         for (const rcvr of rcvrs) {
-          console.log("[%s], %s", rcvr.identifier, rcvr.name);
+          debug("[%s], %s", rcvr.identifier, rcvr.name);
           rcvr.on("message", (data) => {
-            //console.log("receiver %s, %o", rcvr.identifier!, data);
+            //debug("receiver %s, %o", rcvr.identifier!, data);
           });
           rcvr.on("receiver_error", (context) => {
-            console.log("@@@@ Error received by receiver %s", rcvr.identifier!);
-            console.log(context);
+            debug("@@@@ Error received by receiver %s", rcvr.identifier!);
+            debug(context);
           });
         }
-        console.log(">>> Attached message handlers to each receiver.")
+        debug(">>> Attached message handlers to each receiver.")
         try {
           const failedRcvr = await client.createReceiver(partitionId, { eventPosition: EventPosition.fromStart(), identifier: "rcvr-6" });
-          console.log(`Created 6th receiver - ${failedRcvr.name}`);
+          debug(`Created 6th receiver - ${failedRcvr.name}`);
           failedRcvr.on("message", (data) => {
-            //console.log(data);
+            //debug(data);
           });
           failedRcvr.on("receiver_error", (context) => {
-            console.log("@@@@ Error received by receiver %s", failedRcvr.identifier!);
-            console.log(context);
+            debug("@@@@ Error received by receiver %s", failedRcvr.identifier!);
+            debug(context);
           });
           rcvrs.push(failedRcvr);
         } catch (err) {
@@ -386,8 +423,8 @@ describe("EventHub Receiver", function () {
           should.equal(true, err instanceof Errors.QuotaExceededError);
         }
       } catch (err) {
-        //console.log("uber catch");
-        console.log(err);
+        //debug("uber catch");
+        debug(err);
         throw new Error("Should not have reached here.");
       }
     });

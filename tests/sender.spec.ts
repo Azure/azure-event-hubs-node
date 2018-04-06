@@ -5,7 +5,8 @@ import * as chai from "chai";
 const should = chai.should();
 import * as chaiAsPromised from "chai-as-promised";
 chai.use(chaiAsPromised);
-
+import * as debugModule from "debug";
+const debug = debugModule("azure:event-hubs:sender-spec");
 import { EventHubClient, EventHubSender, EventData, Errors } from "../lib";
 describe("EventHub Sender", function () {
   this.timeout(60000);
@@ -24,7 +25,7 @@ describe("EventHub Sender", function () {
   });
 
   afterEach("close the sender link", async function () {
-    await sender.close();
+    if (sender) await sender.close();
   });
   describe("Single message", function () {
     it("should be sent successfully.", async function () {
@@ -34,7 +35,7 @@ describe("EventHub Sender", function () {
         body: "Hello World"
       }
       const delivery = await sender.send(data);
-      // console.log(delivery);
+      debug(delivery);
       delivery.id.should.equal(0);
       delivery.format.should.equal(0);
       delivery.settled.should.equal(true);
@@ -48,7 +49,7 @@ describe("EventHub Sender", function () {
         body: "Hello World with partition key"
       }
       const delivery = await sender.send(data, "p1234");
-      // console.log(delivery);
+      debug(delivery);
       delivery.id.should.equal(0);
       delivery.format.should.equal(0);
       delivery.settled.should.equal(true);
@@ -62,7 +63,7 @@ describe("EventHub Sender", function () {
         body: "Hello World"
       }
       const delivery = await sender.send(data);
-      // console.log(delivery);
+      debug(delivery);
       delivery.id.should.equal(0);
       delivery.format.should.equal(0);
       delivery.settled.should.equal(true);
@@ -84,7 +85,7 @@ describe("EventHub Sender", function () {
         }
       ];
       const delivery = await sender.sendBatch(data);
-      // console.log(delivery);
+      debug(delivery);
       delivery.id.should.equal(0);
       delivery.format.should.equal(0x80013700);
       delivery.settled.should.equal(true);
@@ -103,7 +104,7 @@ describe("EventHub Sender", function () {
         }
       ];
       const delivery = await sender.sendBatch(data, "p1234");
-      // console.log(delivery);
+      debug(delivery);
       delivery.id.should.equal(0);
       delivery.format.should.equal(0x80013700);
       delivery.settled.should.equal(true);
@@ -122,7 +123,7 @@ describe("EventHub Sender", function () {
         }
       ];
       const delivery = await sender.sendBatch(data);
-      // console.log(delivery);
+      debug(delivery);
       delivery.id.should.equal(0);
       delivery.format.should.equal(0x80013700);
       delivery.settled.should.equal(true);
@@ -139,7 +140,7 @@ describe("EventHub Sender", function () {
         body: "Hello World"
       }
       await sender.close();
-      console.log("closed sender");
+      debug("closed sender");
       try {
         await sender.send(data);
       } catch (err) {
@@ -156,10 +157,29 @@ describe("EventHub Sender", function () {
       try {
         await sender.send(data);
       } catch (err) {
-        // console.log(err);
+        debug(err);
         should.equal(true, err instanceof Errors.MessageTooLargeError);
         err.message.should.match(/.*The received message \(delivery-id:0, size:300016 bytes\) exceeds the limit \(262144 bytes\) currently allowed on the link\..*/ig);
       }
+    });
+
+    describe("on invalid partition ids like", function () {
+      const invalidIds = ["XYZ", "-1", "1000", "-", "", " ", null];
+      invalidIds.forEach(function (id) {
+        //const id = invalidIds[5];
+        it(`"${id}" should throw an error`, async function () {
+          try {
+            sender = await client.createSender(id);
+            debug("Created sender and will be sending a message to partition id ...", id);
+            await sender.send({ body: "Hello world!" });
+            debug("sent the message.");
+          } catch (err) {
+            debug(`>>>> Received error for invalid partition id "${id}" - `, err);
+            should.exist(err);
+            should.equal(true, err instanceof Errors.ArgumentOutOfRangeError || err instanceof Errors.InvalidOperationError);
+          }
+        });
+      });
     });
   });
 });
