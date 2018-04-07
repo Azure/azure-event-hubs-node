@@ -35,3 +35,4 @@ dist/examples
 
 # misc #
 contribute.md
+./typings/examples/**
