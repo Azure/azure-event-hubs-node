@@ -28,6 +28,7 @@ exports.aadEventHubsAudience = "https://eventhubs.azure.net/";
 exports.maxUserAgentLength = 128;
 exports.vendorString = "com.microsoft";
 exports.attachEpoch = `${exports.vendorString}:epoch`;
+exports.receiverIdentifierName = `${exports.vendorString}:receiver-name`;
 exports.enableReceiverRuntimeMetricName = `${exports.vendorString}:enable-receiver-runtime-metric`;
 exports.receiverError = "receiver_error";
 exports.senderError = "sender_error";

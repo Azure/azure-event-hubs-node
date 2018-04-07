@@ -38,16 +38,18 @@ class EventHubSender extends events_1.EventEmitter {
             this.emit(Constants.error, errors.translate(context.sender.error));
         };
         this.on("newListener", (event) => {
-            if (event === Constants.senderError) {
+            if (event === Constants.error) {
                 if (this._session && this._sender) {
+                    debug("Attaching an event handler for the 'sender_error' event on the underlying amqp sender: ", this.name);
                     this._sender.on(Constants.senderError, onError);
                 }
             }
         });
         this.on("removeListener", (event) => {
-            if (event === Constants.senderError) {
+            if (event === Constants.error) {
                 if (this._session && this._sender) {
-                    this._sender.on(Constants.senderError, onError);
+                    debug("Removing an event handler for the 'sender_error' event on the underlying amqp sender: ", this.name);
+                    this._sender.removeListener(Constants.senderError, onError);
                 }
             }
         });
@@ -70,20 +72,40 @@ class EventHubSender extends events_1.EventEmitter {
             // Negotitate the CBS claim.
             await this._context.cbsSession.negotiateClaim(this.audience, this._context.connection, tokenObject);
             if (!this._session && !this._sender) {
+                let senderError;
                 this._session = await rheaPromise.createSession(this._context.connection);
+                const handleSenderError = (context) => {
+                    senderError = _1.Errors.translate(context.sender.error);
+                    debug(`An error occurred while creating the sender "${this.name}" : `, senderError);
+                };
+                this._session.on(Constants.senderError, handleSenderError);
                 let options = {
                     target: {
                         address: this.address
                     }
                 };
+                debug("Trying to create a sender...");
                 this._sender = await rheaPromise.createSender(this._session, options);
                 this.name = this._sender.name;
-                debug(`[${this._context.connectionId}] Negotatited claim for sender "${this.name}" with with partition` +
-                    ` "${this.partitionId}"`);
+                debug("Promise to create the sender resolved. Created sender with name: ", this.name);
+                if (senderError) {
+                    // There are cases where the EH service sends an attach frame, which causes rhea to emit sender_open event
+                    // thus resolving the promise to create a sender and moments later the service sends back a detach frame
+                    // indicating that there was some error. Hence we check for senderError, even after the promise has resolved.
+                    debug("throwing the senderError, ", senderError);
+                    throw senderError;
+                }
+                this._session.removeListener(Constants.senderError, handleSenderError);
+                debug(`[${this._context.connectionId}] Sender "${this.name}" created with sender options: \n${JSON.stringify(options, undefined, 2)}`);
             }
+            debug(`[${this._context.connectionId}] Negotatited claim for sender "${this.name}" with with partition` +
+                ` "${this.partitionId}"`);
             this._ensureTokenRenewal();
         }
         catch (err) {
+            if (err.value || (err.constructor && err.constructor.name === "c"))
+                err = _1.Errors.translate(err);
+            debug("Will reject the promise to create the sender with error", err);
             return Promise.reject(err);
         }
     }
@@ -93,7 +115,7 @@ class EventHubSender extends events_1.EventEmitter {
      * @method send
      * @param {any} data               Message to send.  Will be sent as UTF8-encoded JSON string.
      * @param {string} [partitionKey]  Partition key - sent as x-opt-partition-key, and will hash to a partitionId.
-     * @returns {Promise<any>} Promise<any>
+     * @returns {Promise<rheaPromise.Delivery>} Promise<rheaPromise.Delivery>
      */
     async send(data, partitionKey) {
         try {
@@ -104,7 +126,7 @@ class EventHubSender extends events_1.EventEmitter {
                 throw new Error("partitionKey must be of type string");
             }
             if (!this._session && !this._sender) {
-                throw new Error("amqp sender is not present. Hence cannot send the message.");
+                throw _1.Errors.translate({ condition: _1.Errors.ConditionStatusMapper[404], description: "The messaging entity underlying amqp sender could not be found." });
             }
             let message = _1.EventData.toAmqpMessage(data);
             if (partitionKey) {
@@ -122,7 +144,7 @@ class EventHubSender extends events_1.EventEmitter {
      * Send a batch of EventData to the EventHub.
      * @param {Array<EventData>} datas  An array of EventData objects to be sent in a Batch message.
      * @param {string} [partitionKey]   Partition key - sent as x-opt-partition-key, and will hash to a partitionId.
-     * @return {Promise<any>} Promise<any>
+     * @return {Promise<rheaPromise.Delivery>} Promise<rheaPromise.Delivery>
      */
     async sendBatch(datas, partitionKey) {
         try {
@@ -133,7 +155,7 @@ class EventHubSender extends events_1.EventEmitter {
                 throw new Error("partitionKey must be of type string");
             }
             if (!this._session && !this._sender) {
-                throw new Error("amqp sender is not present. Hence cannot send the message.");
+                throw _1.Errors.translate({ condition: _1.Errors.ConditionStatusMapper[404], description: "The messaging entity underlying amqp sender could not be found." });
             }
             debug(`[${this._context.connectionId}] Sender "${this.name}", trying to send EventData[].`, datas);
             let messages = [];
@@ -179,18 +201,20 @@ class EventHubSender extends events_1.EventEmitter {
      * @return {Promise<void>} Promise<void>
      */
     async close() {
-        try {
-            await this._sender.detach();
-            this.removeAllListeners();
-            delete this._context.senders[this.name];
-            debug(`Deleted the sender "${this.name}" from the client cache.`);
-            this._sender = undefined;
-            this._session = undefined;
-            clearTimeout(this._tokenRenewalTimer);
-            debug(`[${this._context.connectionId}] Sender "${this.name}" closed.`);
-        }
-        catch (err) {
-            return Promise.reject(err);
+        if (this._sender) {
+            try {
+                await rheaPromise.closeSender(this._sender);
+                this.removeAllListeners();
+                delete this._context.senders[this.name];
+                debug(`Deleted the sender "${this.name}" from the client cache.`);
+                this._sender = undefined;
+                this._session = undefined;
+                clearTimeout(this._tokenRenewalTimer);
+                debug(`[${this._context.connectionId}] Sender "${this.name}" closed.`);
+            }
+            catch (err) {
+                return Promise.reject(err);
+            }
         }
     }
     /**
@@ -201,7 +225,7 @@ class EventHubSender extends events_1.EventEmitter {
      * to be accepted or rejected and accordingly resolve or reject the promise.
      *
      * @param message The message to be sent to EventHub.
-     * @return {Promise<any>} Promise<any>
+     * @return {Promise<rheaPromise.Delivery>} Promise<rheaPromise.Delivery>
      */
     _trySend(message, tag, format) {
         return new Promise((resolve, reject) => {
