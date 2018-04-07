@@ -5,7 +5,8 @@
 node_modules/
 
 # Test folder #
-test/
+tests/
+testhub/
 
 # Tools and dev scripts #
 tools/
@@ -26,6 +27,11 @@ packages.config
 
 # Examples #
 examples/
-
+dist/examples
 # vscode #
 .vscode/
+.env
+.sample.env
+
+# misc #
+contribute.md
