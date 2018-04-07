@@ -3,6 +3,7 @@
 // Licensed under the MIT License. See License.txt in the project root for license information.
 Object.defineProperty(exports, "__esModule", { value: true });
 const rpc_1 = require("./rpc");
+const rheaPromise = require("./rhea-promise");
 const uuid = require("uuid/v4");
 const Constants = require("./util/constants");
 const debugModule = require("debug");
@@ -117,7 +118,7 @@ class CbsClient {
     async close() {
         try {
             if (this._cbsSenderReceiverLink) {
-                await this._cbsSenderReceiverLink.session.close();
+                await rheaPromise.closeSession(this._cbsSenderReceiverLink.session);
                 debug("Successfully closed the cbs session.");
                 this._cbsSenderReceiverLink = undefined;
             }

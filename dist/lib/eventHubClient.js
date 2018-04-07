@@ -64,7 +64,7 @@ class EventHubClient {
                 await this._context.cbsSession.close();
                 // Close the management session
                 await this._context.managementSession.close();
-                await this._context.connection.close();
+                await rheaPromise.closeConnection(this._context.connection);
                 debug(`Closed the amqp connection "${this._context.connectionId}" on the client.`);
                 this._context.connection = undefined;
             }
@@ -166,6 +166,9 @@ class EventHubClient {
      * @param {(string|number)} partitionId Partition ID for which partition information is required.
      */
     async getPartitionInformation(partitionId) {
+        if (!partitionId || (partitionId && typeof partitionId !== "string" && typeof partitionId !== "number")) {
+            throw new Error("'partitionId' is a required parameter and must be of type: 'string' | 'number'.");
+        }
         try {
             await this._open();
             return await this._context.managementSession.getPartitionInformation(this._context.connection, partitionId);

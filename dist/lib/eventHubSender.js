@@ -203,7 +203,7 @@ class EventHubSender extends events_1.EventEmitter {
     async close() {
         if (this._sender) {
             try {
-                await this._sender.detach();
+                await rheaPromise.closeSender(this._sender);
                 this.removeAllListeners();
                 delete this._context.senders[this.name];
                 debug(`Deleted the sender "${this.name}" from the client cache.`);
