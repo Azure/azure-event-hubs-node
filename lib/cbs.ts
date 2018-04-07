@@ -123,7 +123,7 @@ export class CbsClient {
   async close(): Promise<void> {
     try {
       if (this._cbsSenderReceiverLink) {
-        await this._cbsSenderReceiverLink.session.close();
+        await rheaPromise.closeSession(this._cbsSenderReceiverLink.session);
         debug("Successfully closed the cbs session.");
         this._cbsSenderReceiverLink = undefined;
       }

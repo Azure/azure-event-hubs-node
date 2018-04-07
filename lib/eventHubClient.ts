@@ -150,7 +150,7 @@ export class EventHubClient {
         await this._context.cbsSession.close();
         // Close the management session
         await this._context.managementSession.close();
-        await this._context.connection.close();
+        await rheaPromise.closeConnection(this._context.connection);
         debug(`Closed the amqp connection "${this._context.connectionId}" on the client.`);
         this._context.connection = undefined;
       }

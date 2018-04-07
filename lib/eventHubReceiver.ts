@@ -160,7 +160,10 @@ export class EventHubReceiver extends EventEmitter {
       const evData = EventData.fromAmqpMessage(context.message);
       this.emit(Constants.message, evData);
     };
-    const onError = (context: rheaPromise.Context) => {
+    const onError = async (context: rheaPromise.Context) => {
+      // Since the receiver received an error the link has been closed. So calling
+      // this.close() will ensure that the receiver has been removed from the context.
+      await this.close();
       this.emit(Constants.error, errors.translate(context.receiver.error));
     };
 
@@ -351,7 +354,7 @@ export class EventHubReceiver extends EventEmitter {
         // TODO: should I call _receiver.detach() or _receiver.close()?
         // should I also call this._session.close() after closing the reciver
         // or can I directly close the session which will take care of closing the receiver as well.
-        await this._receiver.detach();
+        await rheaPromise.closeReceiver(this._receiver);
         this.removeAllListeners();
         delete this._context.receivers[this.name!];
         debug(`Deleted the receiver "${this.name!}" from the client cache.`);

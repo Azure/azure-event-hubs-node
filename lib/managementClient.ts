@@ -150,7 +150,7 @@ export class ManagementClient {
   async close(): Promise<void> {
     try {
       if (this._mgmgtReqResLink) {
-        await this._mgmgtReqResLink.session.close();
+        await rheaPromise.closeSession(this._mgmgtReqResLink.session);
         debug("Successfully closed the management session.");
         this._mgmgtReqResLink = undefined;
       }
