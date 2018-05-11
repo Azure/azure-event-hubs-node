@@ -9,12 +9,9 @@ cache:
 
 before_install:
   - cd client
-  - npm install
 
 script:
-  - cd client
   - npm test
-  - npm run release
 
 deploy:
   provider: npm
