@@ -1,5 +1,5 @@
 {
-  "name": "azure-event-hubs",
+  "name": "@arundo/azure-event-hubs",
   "version": "0.2.2-a",
   "description": "Azure Event Hubs SDK for Node.js",
   "author": "Microsoft Corporation",
