@@ -139,6 +139,9 @@ export class EventHubSender extends ClientEntity {
         delete this._context.senders[this.name!];
         debug("[%s] Deleted the sender '%s' with address '%s' from the client cache.",
           this._context.connectionId, this.name, this.address);
+        if (this._sender) {
+            this._sender.removeAllListeners();
+        }
         this._sender = undefined;
         this._session = undefined;
         clearTimeout(this._tokenRenewalTimer as NodeJS.Timer);
@@ -182,10 +185,10 @@ export class EventHubSender extends ClientEntity {
         let onModified: Func<rheaPromise.EventContext, void>;
         let onAccepted: Func<rheaPromise.EventContext, void>;
         const removeListeners = (): void => {
-          this._sender.removeListener("rejected", onRejected);
-          this._sender.removeListener("accepted", onAccepted);
-          this._sender.removeListener("released", onReleased);
-          this._sender.removeListener("modified", onModified);
+          this._sender.removeAllListeners("rejected");
+          this._sender.removeAllListeners("accepted");
+          this._sender.removeAllListeners("released");
+          this._sender.removeAllListeners("modified");
         };
 
         onAccepted = (context: rheaPromise.EventContext) => {
@@ -203,7 +206,6 @@ export class EventHubSender extends ClientEntity {
         };
         onReleased = (context: rheaPromise.EventContext) => {
           removeListeners();
-          debug("[%s] Sender '%s', got event released.", this._context.connectionId, this.name);
           let err: Error;
           if (context!.delivery!.remote_state!.error) {
             err = translate(context!.delivery!.remote_state!.error);
@@ -215,7 +217,6 @@ export class EventHubSender extends ClientEntity {
         };
         onModified = (context: rheaPromise.EventContext) => {
           removeListeners();
-          debug("[%s] Sender '%s', got event modified.", this._context.connectionId, this.name);
           let err: Error;
           if (context!.delivery!.remote_state!.error) {
             err = translate(context!.delivery!.remote_state!.error);
@@ -225,6 +226,7 @@ export class EventHubSender extends ClientEntity {
           }
           reject(err);
         };
+        removeListeners();
         this._sender.on("accepted", onAccepted);
         this._sender.on("rejected", onRejected);
         this._sender.on("modified", onModified);
@@ -276,6 +278,11 @@ export class EventHubSender extends ClientEntity {
         this._session = await rheaPromise.createSession(this._context.connection);
         debug("[%s] Trying to create sender '%s'...", this._context.connectionId, this.name);
         const options = this._createSenderOptions();
+
+        if (this._sender) {
+          this._sender.removeAllListeners();
+        }
+
         this._sender = await rheaPromise.createSenderWithHandlers(this._session, onAmqpError, options);
         debug("[%s] Promise to create the sender resolved. Created sender with name: %s",
           this._context.connectionId, this.name);
