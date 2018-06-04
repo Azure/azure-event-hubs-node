@@ -187,10 +187,10 @@ export class EventHubSender extends ClientEntity {
         let onModified: Func<rheaPromise.Context, void>;
         let onAccepted: Func<rheaPromise.Context, void>;
         const removeListeners = (): void => {
-          this._sender.removeListener("rejected", onRejected);
-          this._sender.removeListener("accepted", onAccepted);
-          this._sender.removeListener("released", onReleased);
-          this._sender.removeListener("modified", onModified);
+          this._sender.removeAllListeners("rejected");
+          this._sender.removeAllListeners("accepted");
+          this._sender.removeAllListeners("released");
+          this._sender.removeAllListeners("modified");
         };
 
         onAccepted = (context: rheaPromise.Context) => {
@@ -208,7 +208,6 @@ export class EventHubSender extends ClientEntity {
         };
         onReleased = (context: rheaPromise.Context) => {
           removeListeners();
-          debug("[%s] Sender '%s', got event released.", this._context.connectionId, this.name);
           let err: Error;
           if (context!.delivery!.remote_state.error) {
             err = translate(context!.delivery!.remote_state.error);
@@ -220,7 +219,6 @@ export class EventHubSender extends ClientEntity {
         };
         onModified = (context: rheaPromise.Context) => {
           removeListeners();
-          debug("[%s] Sender '%s', got event modified.", this._context.connectionId, this.name);
           let err: Error;
           if (context!.delivery!.remote_state.error) {
             err = translate(context!.delivery!.remote_state.error);
@@ -230,6 +228,7 @@ export class EventHubSender extends ClientEntity {
           }
           reject(err);
         };
+        removeListeners();
         this._sender.on("accepted", onAccepted);
         this._sender.on("rejected", onRejected);
         this._sender.on("modified", onModified);
