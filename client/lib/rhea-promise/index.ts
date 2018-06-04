@@ -42,7 +42,7 @@ export function connect(options?: ConnectionOptions): Promise<any> {
     }
 
     function onTransportClose(context: Context): void {
-        debug(`Error occurred while establishing amqp connection.`, context.connection.error);
+        debug(`Error occurred after establishing amqp connection.`, context.connection.error);
       closeConnection(context.connection).then(() => {
         context.connection = undefined;
       }).catch((err) => {

@@ -141,6 +141,9 @@ export class EventHubSender extends ClientEntity {
         delete this._context.senders[this.name!];
         debug("[%s] Deleted the sender '%s' with address '%s' from the client cache.",
           this._context.connectionId, this.name, this.address);
+        if (this._sender) {
+            this._sender.removeAllListeners();
+        }
         this._sender = undefined;
         this._session = undefined;
         clearTimeout(this._tokenRenewalTimer as NodeJS.Timer);
@@ -278,6 +281,11 @@ export class EventHubSender extends ClientEntity {
         this._session = await rheaPromise.createSession(this._context.connection);
         debug("[%s] Trying to create sender '%s'...", this._context.connectionId, this.name);
         const options = this._createSenderOptions();
+
+        if (this._sender) {
+          this._sender.removeAllListeners();
+        }
+
         this._sender = await rheaPromise.createSenderWithHandlers(this._session, onAmqpError, options);
         debug("[%s] Promise to create the sender resolved. Created sender with name: %s",
           this._context.connectionId, this.name);
