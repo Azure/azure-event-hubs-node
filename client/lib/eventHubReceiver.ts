@@ -209,12 +209,12 @@ export class EventHubReceiver extends LinkEntity {
       const receiverError = context.receiver && context.receiver.error;
       const sessionError = context.session && context.session.error;
       if (receiverError) {
-        const ehError = translate(context.receiver!.error!);
+        const ehError = translate(receiverError);
         debug("[%s] An error occurred for Receiver '%s': %O.",
           this._context.connectionId, this.name, ehError);
         this._onError!(ehError);
       } else if (sessionError) {
-        const ehError = translate(context.receiver!.error!);
+        const ehError = translate(sessionError);
         debug("[%s] An error occurred on the session for Receiver '%s': %O.",
           this._context.connectionId, this.name, ehError);
         this._onError!(ehError);
