@@ -64,7 +64,8 @@ export class AzureStorageCheckpointLeaseManager implements CheckpointManager, Le
       const jsonLease: LeaseInfo = JSON.parse(text);
       const blobLeaseInfo: AzureBlobLeaseInfo = {
         ...jsonLease,
-        blob: blob
+        blob: blob,
+        partitionId: partitionId
       };
       return new AzureBlobLease(blobLeaseInfo);
     } catch (err) {
