@@ -222,7 +222,7 @@ describe("EventHubClient on ", function () {
         } catch (err) {
           debug(`>>>> Received error - `, err);
           should.exist(err);
-          should.equal(err.name, "InvalidOperationError");
+          should.equal(err.name, "ArgumentOutOfRangeError");
         }
       });
     });
