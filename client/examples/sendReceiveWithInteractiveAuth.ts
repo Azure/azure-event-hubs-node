@@ -17,9 +17,10 @@ async function main(): Promise<void> {
   // azure role assignment create -o contributor --scope /subscriptions/<subscriptionId>/resourceGroups/<rgName>/providers/Microsoft.EventHub/namespaces/<ehNamespaceName> --signInName <user@example.com>
   const credentials = await msrestAzure.interactiveLogin({ tokenAudience: aadEventHubsAudience });
   const client = EventHubClient.createFromAadTokenCredentials(address, path, credentials);
-  await client.send({ body: "Hello awesome world!!" }, "0");
-  const datas = await client.receiveBatch("0", 2, 5, { eventPosition: EventPosition.fromEnqueuedTime(Date.now()) });
-  console.log(">>> EventDataObjects: ", datas);
+  const partitionIds = await client.getPartitionIds();
+  await client.send({ body: "Hello awesome world!!" }, partitionIds[0]);
+  const data = await client.receiveBatch( partitionIds[0], 2, 5, { eventPosition: EventPosition.fromEnqueuedTime(Date.now()) });
+  console.log(">>> EventDataObjects: ", data);
   await client.close();
 }
 
