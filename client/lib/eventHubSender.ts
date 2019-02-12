@@ -249,7 +249,7 @@ export class EventHubSender extends LinkEntity {
       }
 
       if (data.partitionKey){
-        data.partitionKey = (typeof data.partitionKey === "number") ? (+data.partitionKey).toString() : data.partitionKey;
+        data.partitionKey = (typeof data.partitionKey !== "string") ? (+data.partitionKey).toString() : data.partitionKey;
       }
 
       if (!this.isOpen()) {
