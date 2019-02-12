@@ -13,8 +13,8 @@ const path = process.env[entityPath] || "";
 
 async function main(): Promise<void> {
   const client = EventHubClient.createFromConnectionString(str, path);
-  const partitionIs = await client.getPartitionIds();
-  const result: EventData[] = await client.receiveBatch(partitionIs[0], 10, 20, { eventPosition: EventPosition.fromStart() });
+  const partitionIds = await client.getPartitionIds();
+  const result: EventData[] = await client.receiveBatch(partitionIds[0], 10, 20, { eventPosition: EventPosition.fromStart() });
   let i = 0;
   for (const data of result) {
     console.log("### Actual message (%d):", ++i, data.body);
