@@ -26,7 +26,7 @@ async function main(): Promise<void> {
   const client = EventHubClient.createFromAadTokenCredentials(address, path, credentials);
   const partitionIds = await client.getPartitionIds();
   await client.send({ body: "Hello awesome world!!" }, partitionIds[0]);
-  const result = await client.receiveBatch(partitionIds[0], 2, 5, { eventPosition: EventPosition.fromEnqueuedTime(Date.now()) });
+  const result: EventData[] = await client.receiveBatch(partitionIds[0], 2, 5, { eventPosition: EventPosition.fromEnqueuedTime(Date.now()) });
   let i = 0;
   for (const data of result) {
     console.log("### Actual message (%d):", ++i, data.body);
