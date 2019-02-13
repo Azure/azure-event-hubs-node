@@ -1,6 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License. See License.txt in the project root for license information.
-import { EventHubClient,EventData, aadEventHubsAudience, EventPosition } from "../lib";
+import {
+  EventHubClient,
+  EventData,
+  aadEventHubsAudience,
+  EventPosition
+} from "../lib";
 import * as msrestAzure from "ms-rest-azure";
 import * as dotenv from "dotenv";
 dotenv.config();
@@ -17,11 +22,25 @@ const clientId = process.env[cid] || "";
 const secret = process.env[sec] || "";
 const domain = process.env[doma] || "";
 async function main(): Promise<void> {
-  const credentials = await msrestAzure.loginWithServicePrincipalSecret(clientId, secret, domain, { tokenAudience: aadEventHubsAudience });
-  const client = EventHubClient.createFromAadTokenCredentials(address, path, credentials);
+  const credentials = await msrestAzure.loginWithServicePrincipalSecret(
+    clientId,
+    secret,
+    domain,
+    { tokenAudience: aadEventHubsAudience }
+  );
+  const client = EventHubClient.createFromAadTokenCredentials(
+    address,
+    path,
+    credentials
+  );
   const partitionIds = await client.getPartitionIds();
   await client.send({ body: "Hello awesome world!!" }, partitionIds[0]);
-  const result: EventData[] = await client.receiveBatch(partitionIds[0], 10, 20, { eventPosition: EventPosition.fromStart() });
+  const result: EventData[] = await client.receiveBatch(
+    partitionIds[0],
+    10,
+    20,
+    { eventPosition: EventPosition.fromEnqueuedTime(Date.now()) }
+  );
   let i = 0;
   for (const data of result) {
     console.log("### Actual message (%d):", ++i, data.body);
@@ -29,6 +48,6 @@ async function main(): Promise<void> {
   await client.close();
 }
 
-main().catch((err) => {
+main().catch(err => {
   console.log("error: ", err);
 });
