@@ -1,11 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License. See License.txt in the project root for license information.
-import {
-  EventHubClient,
-  EventData,
-  aadEventHubsAudience,
-  EventPosition
-} from "../lib";
+// Licensed under the MIT License.
+
+import { EventHubClient, aadEventHubsAudience, EventPosition } from "../lib";
 import * as msrestAzure from "ms-rest-azure";
 import * as dotenv from "dotenv";
 dotenv.config();
