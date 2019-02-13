@@ -22,25 +22,11 @@ const clientId = process.env[cid] || "";
 const secret = process.env[sec] || "";
 const domain = process.env[doma] || "";
 async function main(): Promise<void> {
-  const credentials = await msrestAzure.loginWithServicePrincipalSecret(
-    clientId,
-    secret,
-    domain,
-    { tokenAudience: aadEventHubsAudience }
-  );
-  const client = EventHubClient.createFromAadTokenCredentials(
-    address,
-    path,
-    credentials
-  );
+  const credentials = await msrestAzure.loginWithServicePrincipalSecret(clientId, secret, domain, { tokenAudience: aadEventHubsAudience });
+  const client = EventHubClient.createFromAadTokenCredentials(address, path, credentials);
   const partitionIds = await client.getPartitionIds();
   await client.send({ body: "Hello awesome world!!" }, partitionIds[0]);
-  const result: EventData[] = await client.receiveBatch(
-    partitionIds[0],
-    10,
-    20,
-    { eventPosition: EventPosition.fromEnqueuedTime(Date.now()) }
-  );
+  const result = await client.receiveBatch(partitionIds[0], 2, 5, { eventPosition: EventPosition.fromEnqueuedTime(Date.now()) });
   let i = 0;
   for (const data of result) {
     console.log("### Actual message (%d):", ++i, data.body);
@@ -48,6 +34,6 @@ async function main(): Promise<void> {
   await client.close();
 }
 
-main().catch(err => {
+main().catch((err) => {
   console.log("error: ", err);
 });
