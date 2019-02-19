@@ -1,6 +1,12 @@
 @azure/event-hubs
 ================
 
+This project has been moved to the
+[azure-sdk-for-js](https://github.com/Azure/azure-sdk-for-js/tree/master/packages/%40azure/eventhubs/client/)
+repo.
+
+This repo is no longer maintained.
+
 Azure Event Hubs is a scalable event processing service that ingests and processes large volumes of events and data, with low latency and high reliability. More information about Azure Event Hubs can be found over [here](https://docs.microsoft.com/en-us/azure/event-hubs/event-hubs-features).
 
 This sdk provides a convenient way to interact with the Azure Event Hubs service.

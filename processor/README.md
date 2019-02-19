@@ -1,6 +1,12 @@
 @azure/event-processor-host
 ================
 
+This project has been moved to the
+[azure-sdk-for-js](https://github.com/Azure/azure-sdk-for-js/tree/master/packages/%40azure/eventhubs/processor/)
+repo.
+
+This repo is no longer maintained.
+
 Azure Event Processor Host helps you efficiently receive events from an EventHub. It will create EventHub Receivers
 across all the partitions in the provided consumer group of an EventHub and provide you messages received across
 all the partitions. It will checkpoint metadata about the received messages at regular interval in an
